@@ -12,7 +12,10 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . ./
 
-# Allows configuring the API URL at build time.
+# Build-time args for NEXT_PUBLIC_* — these get inlined into JS bundles.
+# NEXT_PUBLIC_API_URL=auto means the browser resolves the host dynamically
+# and reads the backend port from window.__RUNTIME_CONFIG__ (no rebuild needed
+# when BACKEND_PORT changes).
 ARG NEXT_PUBLIC_API_URL=auto
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ARG NEXT_PUBLIC_AUTH_MODE
@@ -24,16 +27,19 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-ARG NEXT_PUBLIC_AUTH_MODE
 
-# If provided at runtime, Next will expose NEXT_PUBLIC_* to the browser as well
-# (but note some values may be baked at build time).
-ENV NEXT_PUBLIC_API_URL=auto
+# Runtime env vars — passed via docker-compose `environment:`.
+# BACKEND_PORT is read by the entrypoint script and injected into the browser
+# at startup via public/runtime-config.js — no image rebuild needed.
+ARG NEXT_PUBLIC_AUTH_MODE
 ENV NEXT_PUBLIC_AUTH_MODE=${NEXT_PUBLIC_AUTH_MODE}
 
+# Entrypoint generates runtime config before starting the server.
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+
 # Create non-root user before COPY so --chown can reference it.
-# Using COPY --chown avoids a slow recursive chown on overlay2 (docker/for-linux#388).
-RUN addgroup -S appgroup && adduser -S -G appgroup appuser \
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
+  && addgroup -S appgroup && adduser -S -G appgroup appuser \
   && chown appuser:appgroup /app
 
 COPY --from=builder --chown=appuser:appgroup /app/.next ./.next
@@ -47,4 +53,5 @@ USER appuser
 
 EXPOSE 3000
 
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["npm", "run", "start"]

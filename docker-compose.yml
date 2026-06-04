@@ -68,6 +68,9 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-auto}
       NEXT_PUBLIC_AUTH_MODE: ${AUTH_MODE}
+      # Read by docker-entrypoint.sh to generate runtime-config.js.
+      # Change this + restart → new port takes effect immediately (no rebuild).
+      BACKEND_PORT: ${BACKEND_PORT:-8000}
     depends_on:
       - backend
     ports:

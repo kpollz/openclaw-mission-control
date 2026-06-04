@@ -38,6 +38,12 @@ const displayFont = DM_Serif_Display({
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        {/* Runtime config injected by docker-entrypoint.sh at container start.
+            Loaded synchronously so window.__RUNTIME_CONFIG__ is available
+            before any page JavaScript executes. */}
+        <script src="/runtime-config.js" />
+      </head>
       <body
         className={`${bodyFont.variable} ${headingFont.variable} ${displayFont.variable} min-h-screen bg-app text-strong antialiased`}
       >
