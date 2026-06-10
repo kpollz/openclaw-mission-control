@@ -944,7 +944,7 @@ class AgentLifecycleService(OpenClawDBService):
         agent_id: UUID,
         ctx: OrganizationContext,
     ) -> AgentResendTokenResult:
-        """Mint a new token, push only TOOLS.md to the gateway, nudge the agent."""
+        """Mint a new token, push TOOLS.md + HEARTBEAT.md to the gateway, nudge the agent."""
         agent = await Agent.objects.by_id(agent_id).first(self.session)
         if agent is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
@@ -974,7 +974,7 @@ class AgentLifecycleService(OpenClawDBService):
             context = _build_main_context(agent, gateway, raw_token, user)
             gateway_agent_id = GatewayAgentIdentity.openclaw_agent_id(gateway)
             session_key = GatewayAgentIdentity.session_key(gateway)
-            file_names = {"TOOLS.md"}
+            file_names = {"TOOLS.md", "HEARTBEAT.md"}
         else:
             board = await Board.objects.by_id(agent.board_id).first(self.session)
             if board is None:
@@ -988,7 +988,7 @@ class AgentLifecycleService(OpenClawDBService):
             context = _build_context(agent, board, gateway, raw_token, user)
             gateway_agent_id = _agent_key(agent)
             session_key = self.resolve_session_key(agent)
-            file_names = {"TOOLS.md"}
+            file_names = {"TOOLS.md", "HEARTBEAT.md"}
 
         config = GatewayClientConfig(
             url=gateway.url,
@@ -997,7 +997,7 @@ class AgentLifecycleService(OpenClawDBService):
             disable_device_pairing=gateway.disable_device_pairing,
         )
 
-        # 3. Render only TOOLS.md
+        # 3. Render TOOLS.md + HEARTBEAT.md
         template_map = MAIN_TEMPLATE_MAP if agent.board_id is None else BOARD_SHARED_TEMPLATE_MAP
         template_overrides = {name: template_map[name] for name in file_names if name in template_map}
         rendered = _render_agent_files(
@@ -1005,13 +1005,14 @@ class AgentLifecycleService(OpenClawDBService):
             template_overrides=template_overrides or None,
         )
         tools_content = rendered.get("TOOLS.md")
+        heartbeat_content = rendered.get("HEARTBEAT.md")
         if not tools_content:
             return AgentResendTokenResult(
                 agent_id=agent.id, success=False,
                 message="Failed to render TOOLS.md template.",
             )
 
-        # 4. Write single file to gateway (1 RPC call)
+        # 4. Write files to gateway (2 RPC calls — still minimal vs full provision)
         control_plane = OpenClawGatewayControlPlane(config)
         try:
             await control_plane.set_agent_file(
@@ -1019,6 +1020,12 @@ class AgentLifecycleService(OpenClawDBService):
                 name="TOOLS.md",
                 content=tools_content,
             )
+            if heartbeat_content:
+                await control_plane.set_agent_file(
+                    agent_id=gateway_agent_id,
+                    name="HEARTBEAT.md",
+                    content=heartbeat_content,
+                )
         except OpenClawGatewayError as exc:
             agent.last_provision_error = str(exc)
             self.session.add(agent)
@@ -1055,7 +1062,7 @@ class AgentLifecycleService(OpenClawDBService):
 
         return AgentResendTokenResult(
             agent_id=agent.id, success=True,
-            message="Token rotated and TOOLS.md pushed to gateway.",
+            message="Token rotated and TOOLS.md + HEARTBEAT.md pushed to gateway.",
         )
 
     @staticmethod
