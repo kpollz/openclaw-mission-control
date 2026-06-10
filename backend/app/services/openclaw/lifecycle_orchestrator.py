@@ -85,8 +85,8 @@ class AgentLifecycleOrchestrator(OpenClawDBService):
                     ),
                 )
 
+        pre_mint_token_hash = locked.agent_token_hash
         raw_token = auth_token or mint_agent_token(locked)
-        saved_token_hash = locked.agent_token_hash
         mark_provision_requested(
             locked,
             action=action,
@@ -122,7 +122,7 @@ class AgentLifecycleOrchestrator(OpenClawDBService):
             )
         except OpenClawGatewayError as exc:
             locked.last_provision_error = str(exc)
-            locked.agent_token_hash = saved_token_hash
+            locked.agent_token_hash = pre_mint_token_hash
             locked.updated_at = utcnow()
             self.session.add(locked)
             await self.session.commit()
@@ -135,7 +135,7 @@ class AgentLifecycleOrchestrator(OpenClawDBService):
             return locked
         except (OSError, RuntimeError, ValueError) as exc:
             locked.last_provision_error = str(exc)
-            locked.agent_token_hash = saved_token_hash
+            locked.agent_token_hash = pre_mint_token_hash
             locked.updated_at = utcnow()
             self.session.add(locked)
             await self.session.commit()
