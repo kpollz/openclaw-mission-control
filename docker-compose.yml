@@ -96,9 +96,7 @@ services:
           path: ./frontend/tsconfig.json
 
   webhook-worker:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
+    image: openclaw-mission-control-backend
     command: ["python", "scripts/rq-docker", "worker"]
     env_file:
       - path: ./backend/.env
