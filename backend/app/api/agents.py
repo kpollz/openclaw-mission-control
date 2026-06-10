@@ -17,6 +17,7 @@ from app.schemas.agents import (
     AgentHeartbeat,
     AgentHeartbeatCreate,
     AgentRead,
+    AgentResendTokenResult,
     AgentUpdate,
 )
 from app.schemas.common import OkResponse
@@ -166,3 +167,14 @@ async def delete_agent(
     """Delete an agent and clean related task state."""
     service = AgentLifecycleService(session)
     return await service.delete_agent(agent_id=agent_id, ctx=ctx)
+
+
+@router.post("/{agent_id}/resend-token", response_model=AgentResendTokenResult)
+async def resend_agent_token(
+    agent_id: str,
+    session: AsyncSession = SESSION_DEP,
+    ctx: OrganizationContext = ORG_ADMIN_DEP,
+) -> AgentResendTokenResult:
+    """Rotate the agent token and push the updated TOOLS.md to the gateway."""
+    service = AgentLifecycleService(session)
+    return await service.resend_agent_token(agent_id=agent_id, ctx=ctx)

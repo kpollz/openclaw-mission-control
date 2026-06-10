@@ -41,6 +41,7 @@ from app.schemas.agents import (
     AgentHeartbeat,
     AgentHeartbeatCreate,
     AgentRead,
+    AgentResendTokenResult,
     AgentUpdate,
 )
 from app.schemas.common import OkResponse
@@ -48,7 +49,9 @@ from app.schemas.gateways import GatewayTemplatesSyncError, GatewayTemplatesSync
 from app.services.activity_log import record_activity
 from app.services.openclaw.constants import (
     _TOOLS_KV_RE,
+    BOARD_SHARED_TEMPLATE_MAP,
     DEFAULT_HEARTBEAT_CONFIG,
+    MAIN_TEMPLATE_MAP,
     OFFLINE_AFTER,
 )
 from app.services.openclaw.db_agent_state import (
@@ -934,6 +937,126 @@ class AgentLifecycleService(OpenClawDBService):
             write=write,
         )
         OpenClawAuthorizationPolicy.require_board_write_access(allowed=allowed)
+
+    async def resend_agent_token(
+        self,
+        *,
+        agent_id: UUID,
+        ctx: OrganizationContext,
+    ) -> AgentResendTokenResult:
+        """Mint a new token, push only TOOLS.md to the gateway, nudge the agent."""
+        agent = await Agent.objects.by_id(agent_id).first(self.session)
+        if agent is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
+        await self.require_agent_access(agent=agent, ctx=ctx, write=True)
+
+        # 1. Mint new token → hash stored on agent
+        raw_token = mint_agent_token(agent)
+        agent.updated_at = utcnow()
+        self.session.add(agent)
+        await self.session.flush()
+
+        # 2. Resolve gateway and template context
+        if agent.board_id is None:
+            gateway = await self.get_main_agent_gateway(agent)
+            if gateway is None:
+                return AgentResendTokenResult(
+                    agent_id=agent.id, success=False,
+                    message="Gateway not found for agent.",
+                )
+            if not gateway.url:
+                return AgentResendTokenResult(
+                    agent_id=agent.id, success=False,
+                    message="Gateway URL not configured.",
+                )
+            user = await get_org_owner_user(self.session, organization_id=gateway.organization_id)
+            from app.services.openclaw.provisioning import _build_main_context, _render_agent_files
+            context = _build_main_context(agent, gateway, raw_token, user)
+            gateway_agent_id = GatewayAgentIdentity.openclaw_agent_id(gateway)
+            session_key = GatewayAgentIdentity.session_key(gateway)
+            file_names = {"TOOLS.md"}
+        else:
+            board = await Board.objects.by_id(agent.board_id).first(self.session)
+            if board is None:
+                return AgentResendTokenResult(
+                    agent_id=agent.id, success=False,
+                    message="Board not found for agent.",
+                )
+            gateway, config = await self.require_gateway(board)
+            user = ctx.member.user if hasattr(ctx.member, "user") else None
+            from app.services.openclaw.provisioning import _build_context, _render_agent_files
+            context = _build_context(agent, board, gateway, raw_token, user)
+            gateway_agent_id = _agent_key(agent)
+            session_key = self.resolve_session_key(agent)
+            file_names = {"TOOLS.md"}
+
+        config = GatewayClientConfig(
+            url=gateway.url,
+            token=gateway.token,
+            allow_insecure_tls=gateway.allow_insecure_tls,
+            disable_device_pairing=gateway.disable_device_pairing,
+        )
+
+        # 3. Render only TOOLS.md
+        template_map = MAIN_TEMPLATE_MAP if agent.board_id is None else BOARD_SHARED_TEMPLATE_MAP
+        template_overrides = {name: template_map[name] for name in file_names if name in template_map}
+        rendered = _render_agent_files(
+            context, agent, file_names, include_bootstrap=False,
+            template_overrides=template_overrides or None,
+        )
+        tools_content = rendered.get("TOOLS.md")
+        if not tools_content:
+            return AgentResendTokenResult(
+                agent_id=agent.id, success=False,
+                message="Failed to render TOOLS.md template.",
+            )
+
+        # 4. Write single file to gateway (1 RPC call)
+        control_plane = OpenClawGatewayControlPlane(config)
+        try:
+            await control_plane.set_agent_file(
+                agent_id=gateway_agent_id,
+                name="TOOLS.md",
+                content=tools_content,
+            )
+        except OpenClawGatewayError as exc:
+            agent.last_provision_error = str(exc)
+            self.session.add(agent)
+            await self.session.commit()
+            return AgentResendTokenResult(
+                agent_id=agent.id, success=False,
+                message=f"Gateway write failed: {exc}",
+            )
+
+        # 5. Nudge agent to re-read TOOLS.md and test heartbeat
+        try:
+            await ensure_session(session_key, config=config, label=agent.name)
+            await send_message(
+                (
+                    f"Your AUTH_TOKEN has been rotated. "
+                    f"Please re-read TOOLS.md and immediately test your heartbeat:\n"
+                    f"curl -s -X POST \"{context['base_url']}/api/v1/agent/heartbeat\" "
+                    f"-H \"X-Agent-Token: $AUTH_TOKEN\""
+                ),
+                session_key=session_key,
+                config=config,
+                deliver=False,
+            )
+        except OpenClawGatewayError:
+            pass  # Best-effort nudge
+
+        # 6. Clean up agent state
+        agent.last_provision_error = None
+        agent.lifecycle_generation = (agent.lifecycle_generation or 0) + 1
+        agent.updated_at = utcnow()
+        self.session.add(agent)
+        await self.session.commit()
+        await self.session.refresh(agent)
+
+        return AgentResendTokenResult(
+            agent_id=agent.id, success=True,
+            message="Token rotated and TOOLS.md pushed to gateway.",
+        )
 
     @staticmethod
     def record_heartbeat(session: AsyncSession, agent: Agent) -> None:

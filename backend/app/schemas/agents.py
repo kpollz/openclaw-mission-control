@@ -314,3 +314,14 @@ class AgentNudge(SQLModel):
         description="Short message to direct an agent toward immediate attention.",
         examples=["Please update the incident triage status for task T-001."],
     )
+
+
+class AgentResendTokenResult(SQLModel):
+    """Result of a resend-token operation."""
+
+    agent_id: UUID = Field(description="Agent UUID.")
+    success: bool = Field(description="Whether the token resend succeeded.")
+    message: str = Field(
+        default="",
+        description="Human-readable status or error message.",
+    )

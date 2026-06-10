@@ -1183,6 +1183,49 @@ export const useUpdateAgentApiV1AgentsAgentIdPatch = <
   );
 };
 /**
+ * Rotate the agent token and push the updated TOOLS.md to the gateway.
+ * @summary Resend Token
+ */
+export const resendTokenApiV1AgentsAgentIdResendTokenPost = (
+  agentId: string,
+  options?: RequestInit,
+): Promise<{ data: { agent_id: string; success: boolean; message: string }; status: number }> => {
+  return customFetch(`/api/v1/agents/${agentId}/resend-token`, {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getResendTokenApiV1AgentsAgentIdResendTokenPostMutationOptions = (
+  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof resendTokenApiV1AgentsAgentIdResendTokenPost>>, Error, { agentId: string }>; request?: SecondParameter<typeof customFetch> },
+  queryClient?: QueryClient,
+): UseMutationOptions<Awaited<ReturnType<typeof resendTokenApiV1AgentsAgentIdResendTokenPost>>, Error, { agentId: string }> => ({
+  mutationKey: ["/api/v1/agents/{agent_id}/resend-token"],
+  mutationFn: async ({ agentId }) => resendTokenApiV1AgentsAgentIdResendTokenPost(agentId, options?.request),
+  ...options?.mutation,
+});
+
+export const useResendTokenApiV1AgentsAgentIdResendTokenPost = (
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof resendTokenApiV1AgentsAgentIdResendTokenPost>>,
+      Error,
+      { agentId: string }
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof resendTokenApiV1AgentsAgentIdResendTokenPost>>,
+  Error,
+  { agentId: string }
+> => {
+  return useMutation(
+    getResendTokenApiV1AgentsAgentIdResendTokenPostMutationOptions(options),
+    queryClient,
+  );
+};
+/**
  * Record a heartbeat for a specific agent.
  * @summary Heartbeat Agent
  */

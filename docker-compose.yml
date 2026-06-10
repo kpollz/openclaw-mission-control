@@ -45,6 +45,8 @@ services:
       LOCAL_AUTH_TOKEN: ${LOCAL_AUTH_TOKEN}
       BASE_URL: ${BASE_URL:-http://localhost:8000}
       RQ_REDIS_URL: redis://redis:6379/0
+    volumes:
+      - device_identity:/home/appuser/.openclaw
     depends_on:
       db:
         condition: service_healthy
@@ -119,3 +121,4 @@ services:
 
 volumes:
   postgres_data:
+  device_identity:

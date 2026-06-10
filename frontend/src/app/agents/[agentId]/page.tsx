@@ -13,6 +13,7 @@ import {
   type getAgentApiV1AgentsAgentIdGetResponse,
   useDeleteAgentApiV1AgentsAgentIdDelete,
   useGetAgentApiV1AgentsAgentIdGet,
+  useResendTokenApiV1AgentsAgentIdResendTokenPost,
 } from "@/api/generated/agents/agents";
 import {
   type listActivityApiV1ActivityGetResponse,
@@ -57,6 +58,10 @@ export default function AgentDetailPage() {
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const [resendOpen, setResendOpen] = useState(false);
+  const [resendError, setResendError] = useState<string | null>(null);
+  const [resendSuccess, setResendSuccess] = useState(false);
 
   const agentQuery = useGetAgentApiV1AgentsAgentIdGet<
     getAgentApiV1AgentsAgentIdGetResponse,
@@ -124,6 +129,24 @@ export default function AgentDetailPage() {
       },
       onError: (err) => {
         setDeleteError(err.message || "Something went wrong.");
+      },
+    },
+  });
+
+  const resendTokenMutation = useResendTokenApiV1AgentsAgentIdResendTokenPost({
+    mutation: {
+      onSuccess: (result) => {
+        const data = result.data as { success: boolean; message: string };
+        if (data.success) {
+          setResendError(null);
+          setResendSuccess(true);
+          agentQuery.refetch();
+        } else {
+          setResendError(data.message || "Token resend failed.");
+        }
+      },
+      onError: (err) => {
+        setResendError(err.message || "Token resend failed.");
       },
     },
   });
@@ -199,6 +222,11 @@ export default function AgentDetailPage() {
                 {agent ? (
                   <Button variant="outline" onClick={() => setDeleteOpen(true)}>
                     Delete
+                  </Button>
+                ) : null}
+                {agent ? (
+                  <Button variant="outline" onClick={() => { setResendOpen(true); setResendSuccess(false); setResendError(null); }}>
+                    Resend Token
                   </Button>
                 ) : null}
               </div>
@@ -389,6 +417,42 @@ export default function AgentDetailPage() {
             <Button onClick={handleDelete} disabled={isDeleting}>
               {isDeleting ? "Deleting…" : "Delete"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={resendOpen} onOpenChange={setResendOpen}>
+        <DialogContent aria-label="Resend agent token">
+          <DialogHeader>
+            <DialogTitle>Resend authentication token</DialogTitle>
+            <DialogDescription>
+              This will generate a new token for {agent?.name ?? "this agent"} and push the updated
+              TOOLS.md to the gateway. The agent will be asked to re-read TOOLS.md and test
+              heartbeat. Use this when the agent is permanently unauthorized (401).
+            </DialogDescription>
+          </DialogHeader>
+          {resendError ? (
+            <div className="rounded-lg border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-3 text-sm text-red-500">
+              {resendError}
+            </div>
+          ) : null}
+          {resendSuccess ? (
+            <div className="rounded-lg border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-3 text-sm text-green-600">
+              Token rotated and TOOLS.md pushed. The agent has been asked to test heartbeat.
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResendOpen(false)}>
+              {resendSuccess ? "Close" : "Cancel"}
+            </Button>
+            {!resendSuccess ? (
+              <Button
+                onClick={() => { if (agentId) resendTokenMutation.mutate({ agentId }); }}
+                disabled={resendTokenMutation.isPending}
+              >
+                {resendTokenMutation.isPending ? "Resending…" : "Resend Token"}
+              </Button>
+            ) : null}
           </DialogFooter>
         </DialogContent>
       </Dialog>

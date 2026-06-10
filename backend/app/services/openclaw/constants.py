@@ -119,7 +119,7 @@ BOARD_SHARED_TEMPLATE_MAP = {
 
 LEAD_TEMPLATE_MAP: dict[str, str] = {}
 
-_TOOLS_KV_RE = re.compile(r"^(?P<key>[A-Z0-9_]+)=(?P<value>.*)$")
+_TOOLS_KV_RE = re.compile(r"^(?:-\s*`)?(?P<key>[A-Z0-9_]+)=(?P<value>.*?)(?:`)?\s*$")
 _NON_TRANSIENT_GATEWAY_ERROR_MARKERS = ("unsupported file",)
 _TRANSIENT_GATEWAY_ERROR_MARKERS = (
     "connect call failed",
