@@ -54,7 +54,35 @@ curl -fsS -X <METHOD> "$BASE_URL<PATH>" \
 
 - `-f` makes curl exit non-zero on 4xx/5xx so failed requests do not look successful.
 - `-sS` silences progress but keeps errors.
-- Use single-quoted heredocs or `--data-binary @file.json` for any payload that contains shell metacharacters. **Do not** mix backtick subshells inside the JSON body.
+
+### Writing JSON bodies WITHOUT shell errors
+
+The shell, not the API, is what breaks most commands. A body like
+`-d "{\"x\":\"$(...)\"}"` or one containing `)`/`` ` ``/`$(` inside double quotes throws
+errors such as `Syntax error: ")" unexpected`. Avoid this completely:
+
+- For any non-trivial body, write the JSON to a file with a **quoted heredoc**, then send
+  it with `--data @file`. The quoted `'JSON'` delimiter stops the shell from touching
+  anything inside:
+
+  ```bash
+  cat > /tmp/body.json <<'JSON'
+  {"status":"review","output":"Built the report; 3 charts; link: s3://...","comment":"Ready for review"}
+  JSON
+  curl -fsS -X PATCH "$BASE_URL/api/v1/agent/projects/$PROJECT_ID/tasks/$TASK_ID" \
+    -H "X-Agent-Token: $AUTH_TOKEN" -H "Content-Type: application/json" \
+    --data @/tmp/body.json
+  ```
+
+- If you build the body inline, wrap it in **single quotes** (`-d '{"k":"v"}'`) and never
+  put `$(...)`, backticks, or unescaped `"`/`)` inside it.
+- To inject a dynamic value safely, build the JSON with `jq` instead of string-glue:
+
+  ```bash
+  jq -n --arg out "$RESULT" '{status:"review", output:$out}' > /tmp/body.json
+  ```
+
+- Validate before sending if unsure: `jq . /tmp/body.json` must print without error.
 
 ## Rule 2 — Endpoint discovery
 
@@ -99,17 +127,50 @@ curl -fsS -X POST "$BASE_URL/api/v1/agent/projects/$PROJECT_ID/tasks/$TASK_ID/co
   -d '{"message":"**Update**\n- short update\n\n**Evidence**\n- proof\n\n**Next**\n- next step"}'
 ```
 
-### Move a task to review
+### Claim a task (inbox → in_progress) BEFORE working
 
 ```bash
 TASK_ID="<task uuid>"
 curl -fsS -X PATCH "$BASE_URL/api/v1/agent/projects/$PROJECT_ID/tasks/$TASK_ID" \
   -H "X-Agent-Token: $AUTH_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"status":"review","comment":"**Update**\n- Ready for review.\n\n**Evidence**\n- ..."}'
+  -d '{"status":"in_progress","status_reason":"starting work"}'
 ```
 
-### Write a project memory entry (non-chat)
+### Move a task to review (output is REQUIRED)
+
+```bash
+TASK_ID="<task uuid>"
+cat > /tmp/review.json <<'JSON'
+{"status":"review","output":"<the real deliverable: summary + links/paths the human can open>","status_reason":"deliverable ready","comment":"**Update**\n- Ready for review.\n\n**Evidence**\n- ..."}
+JSON
+curl -fsS -X PATCH "$BASE_URL/api/v1/agent/projects/$PROJECT_ID/tasks/$TASK_ID" \
+  -H "X-Agent-Token: $AUTH_TOKEN" -H "Content-Type: application/json" \
+  --data @/tmp/review.json
+```
+
+### Reply to project BOARD CHAT
+
+Board chat lives in Mission Control, NOT in WeChat/Slack/SMS or your OpenClaw chat. When
+you receive a `PROJECT BOARD CHAT` message, reply ONLY through this API — never in an
+external channel. The `["chat"]` tag is what makes it appear in the board chat thread.
+
+```bash
+cat > /tmp/reply.json <<'JSON'
+{"content":"Got it — I'll start on the API changes. @lead anything else?","tags":["chat"]}
+JSON
+curl -fsS -X POST "$BASE_URL/api/v1/agent/projects/$PROJECT_ID/memory" \
+  -H "X-Agent-Token: $AUTH_TOKEN" -H "Content-Type: application/json" \
+  --data @/tmp/reply.json
+```
+
+- Put `@name` inside `content` to mention a teammate.
+- Read recent board chat: `GET .../projects/$PROJECT_ID/memory?is_chat=true`.
+
+### Write a project memory entry (durable, non-chat)
+
+Use this for decisions/facts that should persist outside the chat thread (omit the
+`chat` tag):
 
 ```bash
 curl -fsS -X POST "$BASE_URL/api/v1/agent/projects/$PROJECT_ID/memory" \
@@ -119,10 +180,41 @@ curl -fsS -X POST "$BASE_URL/api/v1/agent/projects/$PROJECT_ID/memory" \
 ```
 {% endif %}
 
+## Task workflow & system rules
+
+Tasks move through exactly four statuses: **`inbox` → `in_progress` → `review` → `done`**.
+
+1. **Always check `status` first.** Before doing any work on a task, read its current
+   `status`. If it is `inbox` and you are going to work on it, PATCH `status=in_progress`
+   FIRST (with a short `status_reason`). Never work on a task that is still `inbox` — the
+   board must reflect reality.
+2. **`output` is mandatory for `review` and `done`.** The `output` field is the ONLY
+   deliverable a human can read in Mission Control. Files you create on local disk are
+   temporary and invisible to the user. A PATCH to `review` or `done` with an empty
+   `output` is rejected with **409 `task_output_required`**. Put the real result
+   (summary + links/paths/values) in `output`, not "done, see local file".
+3. **`status_reason`** — include a short reason whenever you change `status` so the
+   timeline is readable.
+4. **`review` means "waiting for the lead".** When you move a task to `review` it is no
+   longer assigned to you; the lead reviews it and either moves it to `done` or sends it
+   back. Do not mark your own task `done` unless you are the lead and all gates pass.
+5. **Gates before `done`** (any may be enabled per project): a linked approval must be
+   approved (`require_approval_for_done`); the task must come from `review`
+   (`require_review_before_done`); all blocking dependency tasks must be `done`; required
+   custom fields filled. Violations return **409**.
+6. **Who can change status:** if `only_lead_can_change_status` is on, workers cannot move
+   tasks — ask the lead. A worker may only edit `status`, `output`, `comment`, and custom
+   fields (not title/description/priority/assignee).
+7. **Post progress as task comments**, not chat. Keep them high-signal (artifact /
+   decision / blocker / handoff).
+
 ## Error handling
 
 - `401` → token is stale; **re-read** `mission_control_credential.json` and retry once. Do not reuse the old shell variable.
 - `403` → you are authenticated but not authorized; ask the lead/user for permission. Never try to widen scope.
+- `409` → a rule blocked the change. Common cause: moving to `review`/`done` with an empty
+  `output` (`task_output_required`) — fill `output` and retry. Other 409s: pending/approved
+  approval required, blocked by dependencies, or review-before-done. Read the `detail.message`.
 - `422` → payload schema mismatch; open `/tmp/openapi.json` and inspect `components.schemas.<Name>` for the request body. Fix and retry.
 - `5xx`/network → do **not** write memory or task updates this cycle. Retry next heartbeat.
 

@@ -42,6 +42,7 @@ async def _seed_project_task_and_agent(
     block_status_changes_with_pending_approval: bool = False,
     only_lead_can_change_status: bool = False,
     agent_is_project_lead: bool = False,
+    output: str | None = "deliverable summary",
 ) -> tuple[Project, Task, Agent]:
     organization_id = uuid4()
     gateway = Gateway(
@@ -76,6 +77,7 @@ async def _seed_project_task_and_agent(
         title="Task",
         status=task_status,
         assigned_agent_id=agent.id,
+        output=output,
     )
 
     session.add(Organization(id=organization_id, name=f"org-{organization_id}"))
@@ -285,6 +287,37 @@ async def test_update_task_rejects_done_without_required_output_field() -> None:
 
             assert updated.status == "done"
             assert updated.completed_at is not None
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_update_task_rejects_review_with_empty_output() -> None:
+    engine = await _make_engine()
+    try:
+        async with await _make_session(engine) as session:
+            _project, task, agent = await _seed_project_task_and_agent(
+                session,
+                task_status="in_progress",
+                require_approval_for_done=False,
+                output=None,
+            )
+
+            with pytest.raises(HTTPException) as exc:
+                await _update_task_status(session, task=task, agent=agent, status="review")
+
+            assert exc.value.status_code == 409
+            detail = exc.value.detail
+            assert isinstance(detail, dict)
+            assert detail["code"] == "task_output_required"
+
+            updated = await tasks_api.update_task(
+                payload=TaskUpdate(status="review", output="the deliverable"),
+                task=task,
+                session=session,
+                actor=ActorContext(actor_type="agent", agent=agent),
+            )
+            assert updated.status == "review"
     finally:
         await engine.dispose()
 

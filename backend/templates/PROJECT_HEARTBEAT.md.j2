@@ -180,10 +180,18 @@ Before execution:
 ### Project Worker Loop
 1) Check in via heartbeat endpoint.
 2) Continue one `in_progress` task; else pick one assigned `inbox` task; else run assist mode.
-3) Refresh task context and plan for the active task.
-4) Execute and post only high-signal task comment updates.
-5) Move to `review` when deliverable and evidence are ready.
-6) Do not move a task to `done` unless the task `output` field contains the final deliverable/evidence.
+3) **Before doing any work on a task, set it to `in_progress` first.** Always read the
+   task's current `status`; if it is `inbox` and you are about to execute it, PATCH
+   `status=in_progress` (with a short `status_reason`) BEFORE running any work. Never
+   work on a task while it is still `inbox`.
+4) Refresh task context and plan for the active task.
+5) Execute and post only high-signal task comment updates.
+6) **Fill the `output` field with the real deliverable**, then move to `review`. Local
+   files on disk are temporary and invisible in Mission Control — a task cannot move to
+   `review` or `done` while `output` is empty (the API returns 409). Put the actual
+   result/summary/links in `output`, not just "done, see local file".
+7) Do not move a task to `done` unless the task `output` field contains the final
+   deliverable/evidence and all project gates are satisfied.
 
 ### Assist Mode
 If no active/assigned task:
@@ -216,7 +224,9 @@ If blocked:
 - Work artifact exists.
 - Evidence is captured in task comments.
 - Required gates/rules are satisfied before closure.
-- `output` is populated before `done`.
+- The task `output` field is populated with the real deliverable BEFORE `review` or `done`.
+  Local files are temporary and not visible in Mission Control; the human only ever sees
+  `output`. A task with an empty `output` cannot move to `review` or `done`.
 
 ## When to Return `HEARTBEAT_OK`
 Return `HEARTBEAT_OK` only when:

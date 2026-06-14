@@ -211,6 +211,22 @@ class TaskService:
         )
 
     @staticmethod
+    def _task_output_required_error(target_status: str) -> Exception:
+        from fastapi import HTTPException, status
+        return HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": (
+                    f"Task cannot move to {target_status} with an empty Output field. "
+                    "Put the deliverable/result in the task `output` field — local files "
+                    "are temporary and not visible in Mission Control."
+                ),
+                "code": "task_output_required",
+                "blocked_by_task_ids": [],
+            },
+        )
+
+    @staticmethod
     def _task_output_value(task: Task, updates: dict[str, object] | None = None) -> str:
         output = task.output
         if updates is not None and "output" in updates:
@@ -218,18 +234,25 @@ class TaskService:
             output = raw if isinstance(raw, str) else None
         return (output or "").strip()
 
-    def _require_task_output_for_done(
+    def _require_task_output_for_review_or_done(
         self,
         *,
         task: Task,
         target_status: str,
+        previous_status: str | None = None,
         updates: dict[str, object] | None = None,
     ) -> None:
-        if target_status != "done":
+        # The Output field is the only deliverable a human can read in Mission Control,
+        # so it must be non-blank before a task TRANSITIONS into review or done. We skip
+        # the check when the status is not actually changing (e.g. commenting on a task
+        # that is already in review) so unrelated updates are not blocked.
+        if target_status not in ("review", "done"):
+            return
+        if previous_status is not None and previous_status == target_status:
             return
         if self._task_output_value(task, updates):
             return
-        raise self._output_required_for_done_error(["output"])
+        raise self._task_output_required_error(target_status)
 
     @staticmethod
     def _pending_approval_blocks_status_change_error() -> Exception:
@@ -638,7 +661,13 @@ class TaskService:
             return "TASK READY FOR LEAD REVIEW\n" + "\n".join(details) + f"\n\n{action}"
         return (
             "TASK ASSIGNED\n" + "\n".join(details)
-            + ("\n\nTake action: open the task and begin work. Post updates as task comments.")
+            + "\n\nTake action:\n"
+            "1) Set this task to `in_progress` BEFORE doing any work "
+            "(PATCH status=in_progress with a short status_reason).\n"
+            "2) Do the work; post progress as task comments.\n"
+            "3) When done, put the real deliverable in the task `output` field, then move "
+            "to `review`. Local files are temporary and invisible in Mission Control — a "
+            "task cannot move to review/done with an empty `output` (API returns 409)."
         )
 
     @staticmethod
@@ -1485,9 +1514,10 @@ class TaskService:
                 target_status=update.task.status,
                 pending_values=update.custom_field_values if update.custom_field_values_set else {},
             )
-            self._require_task_output_for_done(
+            self._require_task_output_for_review_or_done(
                 task=update.task,
                 target_status=update.task.status,
+                previous_status=update.previous_status,
             )
         except Exception:
             for key, value in mutation_snapshot.items():
@@ -1652,6 +1682,12 @@ class TaskService:
             project_id=update.project_id, task_id=update.task.id,
             target_status=target_status,
             pending_values=update.custom_field_values if update.custom_field_values_set else {},
+        )
+        self._require_task_output_for_review_or_done(
+            task=update.task,
+            target_status=target_status,
+            previous_status=update.previous_status,
+            updates=update.updates,
         )
         for key, value in update.updates.items():
             setattr(update.task, key, value)
@@ -1990,7 +2026,7 @@ class TaskService:
             project_id=project.id, task_id=task.id, target_status=task.status,
             pending_values=custom_field_values,
         )
-        self._require_task_output_for_done(
+        self._require_task_output_for_review_or_done(
             task=task,
             target_status=task.status,
         )
@@ -2078,7 +2114,7 @@ class TaskService:
             project_id=project.id, task_id=task.id, target_status=task.status,
             pending_values=custom_field_values,
         )
-        self._require_task_output_for_done(
+        self._require_task_output_for_review_or_done(
             task=task,
             target_status=task.status,
         )

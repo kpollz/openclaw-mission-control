@@ -515,7 +515,7 @@ async def test_non_lead_agent_moves_task_to_review_and_reassigns_to_lead() -> No
             assert actor is not None
 
             updated = await tasks_api.update_task(
-                payload=TaskUpdate(status="review", comment="Moving to review."),
+                payload=TaskUpdate(status="review", output="result deliverable", comment="Moving to review."),
                 task=task,
                 session=session,
                 actor=ActorContext(actor_type="agent", agent=actor),
@@ -640,7 +640,7 @@ async def test_non_lead_agent_move_to_review_reassigns_to_lead_and_sends_review_
             assert actor is not None
 
             updated = await tasks_api.update_task(
-                payload=TaskUpdate(status="review", comment="Moving to review."),
+                payload=TaskUpdate(status="review", output="result deliverable", comment="Moving to review."),
                 task=task,
                 session=session,
                 actor=ActorContext(actor_type="agent", agent=actor),
@@ -768,7 +768,7 @@ async def test_lead_moves_review_task_to_inbox_and_reassigns_last_worker_with_re
             assert lead is not None
 
             moved_to_review = await tasks_api.update_task(
-                payload=TaskUpdate(status="review", comment="Ready for review."),
+                payload=TaskUpdate(status="review", output="result deliverable", comment="Ready for review."),
                 task=task,
                 session=session,
                 actor=ActorContext(actor_type="agent", agent=worker),
@@ -957,7 +957,7 @@ async def test_non_lead_agent_moves_to_review_without_comment_when_rule_disabled
             assert actor is not None
 
             updated = await tasks_api.update_task(
-                payload=TaskUpdate(status="review"),
+                payload=TaskUpdate(status="review", output="result deliverable"),
                 task=task,
                 session=session,
                 actor=ActorContext(actor_type="agent", agent=actor),
@@ -1031,7 +1031,7 @@ async def test_non_lead_agent_moves_to_review_without_comment_or_recent_comment_
 
             with pytest.raises(HTTPException) as exc:
                 await tasks_api.update_task(
-                    payload=TaskUpdate(status="review"),
+                    payload=TaskUpdate(status="review", output="result deliverable"),
                     task=task,
                     session=session,
                     actor=ActorContext(actor_type="agent", agent=actor),

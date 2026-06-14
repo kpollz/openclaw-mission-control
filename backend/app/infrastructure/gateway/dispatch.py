@@ -21,21 +21,27 @@ from app.infrastructure.models.projects import Project as Project
 from app.infrastructure.models.gateways import Gateway
 
 
-def mission_control_agent_footer() -> str:
+def mission_control_agent_footer(workspace_path: str | None = None) -> str:
     """Reminder appended to every system message sent to a project agent.
 
     Token-free by design — points the agent at the on-disk credential + skill so
     the same source of truth governs every API call regardless of which surface
-    triggered the message.
+    triggered the message. When ``workspace_path`` is provided, the footer spells out
+    the absolute file paths (e.g. ``~/.openclaw/workspace-<id>/mission_control_credential.json``);
+    otherwise it falls back to workspace-relative paths (the agent's cwd is its workspace).
     """
+    base = (workspace_path or "").rstrip("/")
+    prefix = f"{base}/" if base else ""
+    credential = f"{prefix}mission_control_credential.json"
+    skill = f"{prefix}skills/mission-control/SKILL.md"
     return (
         "\n\n---\n"
-        "QUAN TRỌNG — trước khi gọi bất kỳ API nào:\n"
-        "1) Lấy token + IDs từ `mission_control_credential.json` "
-        "(vd `AUTH_TOKEN=$(jq -r .auth_token mission_control_credential.json)`). "
-        "KHÔNG lấy token từ env hay parse bằng sed/backtick.\n"
-        "2) Đọc skill `mission-control` (`skills/mission-control/SKILL.md`) "
-        "để biết endpoint và cách viết lệnh đúng trước khi chạy.\n"
+        "IMPORTANT — before calling any API:\n"
+        f"1) Get the token + IDs from `{credential}` "
+        f"(e.g. `AUTH_TOKEN=$(jq -r .auth_token {credential})`). "
+        "Do NOT read the token from env or parse it with sed/backticks.\n"
+        f"2) Read the `mission-control` skill (`{skill}`) "
+        "for the endpoints and how to write commands correctly before running them.\n"
     )
 
 
@@ -56,6 +62,32 @@ class GatewayDispatchService(OpenClawDBService):
         gateway = await require_gateway_for_project(self.session, project)
         return gateway, gateway_client_config(gateway)
 
+    async def _resolve_agent_workspace_path(self, session_key: str) -> str | None:
+        """Best-effort absolute workspace path for the agent owning ``session_key``.
+
+        Every agent record stores ``openclaw_session_id == session_key``, so we can map a
+        dispatch target back to its agent + gateway and derive the on-disk workspace path
+        used to spell out absolute file paths in the footer. Returns None on any miss so
+        the footer falls back to relative paths.
+        """
+        from app.infrastructure.models.agents import Agent
+        from app.infrastructure.gateway.provisioner import _workspace_path
+
+        if not session_key:
+            return None
+        try:
+            agent = await Agent.objects.filter_by(openclaw_session_id=session_key).first(
+                self.session,
+            )
+            if agent is None:
+                return None
+            gateway = await Gateway.objects.by_id(agent.gateway_id).first(self.session)
+            if gateway is None or not gateway.workspace_root:
+                return None
+            return _workspace_path(agent, gateway.workspace_root)
+        except Exception:
+            return None
+
     async def send_agent_message(
         self,
         *,
@@ -65,9 +97,16 @@ class GatewayDispatchService(OpenClawDBService):
         message: str,
         deliver: bool = False,
         append_footer: bool = False,
+        footer_workspace_path: str | None = None,
     ) -> None:
         await ensure_session(session_key, config=config, label=agent_name)
-        payload = f"{message}{mission_control_agent_footer()}" if append_footer else message
+        if append_footer:
+            workspace_path = footer_workspace_path or await self._resolve_agent_workspace_path(
+                session_key,
+            )
+            payload = f"{message}{mission_control_agent_footer(workspace_path)}"
+        else:
+            payload = message
         await send_message(payload, session_key=session_key, config=config, deliver=deliver)
 
     async def try_send_agent_message(
@@ -79,6 +118,7 @@ class GatewayDispatchService(OpenClawDBService):
         message: str,
         deliver: bool = False,
         append_footer: bool = False,
+        footer_workspace_path: str | None = None,
     ) -> OpenClawGatewayError | None:
         try:
             await self.send_agent_message(
@@ -88,6 +128,7 @@ class GatewayDispatchService(OpenClawDBService):
                 message=message,
                 deliver=deliver,
                 append_footer=append_footer,
+                footer_workspace_path=footer_workspace_path,
             )
         except OpenClawGatewayError as exc:
             return exc
