@@ -220,6 +220,77 @@ async def test_non_lead_agent_can_update_status_for_assigned_task() -> None:
 
 
 @pytest.mark.asyncio
+async def test_non_lead_agent_can_update_status_with_status_reason() -> None:
+    # Regression: workers are instructed to claim a task with a short status_reason.
+    # The field must be accepted (no 403) and persisted on the task.
+    engine = await _make_engine()
+    try:
+        async with await _make_session(engine) as session:
+            org_id = uuid4()
+            project_id = uuid4()
+            gateway_id = uuid4()
+            worker_id = uuid4()
+            task_id = uuid4()
+
+            session.add(Organization(id=org_id, name="org"))
+            session.add(
+                Gateway(
+                    id=gateway_id,
+                    organization_id=org_id,
+                    name="gateway",
+                    url="https://gateway.local",
+                    workspace_root="/tmp/workspace",
+                ),
+            )
+            session.add(
+                Project(
+                    id=project_id,
+                    organization_id=org_id,
+                    name="project",
+                    slug="project",
+                    gateway_id=gateway_id,
+                ),
+            )
+            session.add(
+                Agent(
+                    id=worker_id,
+                    name="worker",
+                    project_id=project_id,
+                    gateway_id=gateway_id,
+                    status="online",
+                ),
+            )
+            session.add(
+                Task(
+                    id=task_id,
+                    project_id=project_id,
+                    title="assigned task",
+                    description="",
+                    status="inbox",
+                    assigned_agent_id=worker_id,
+                ),
+            )
+            await session.commit()
+
+            task = (await session.exec(select(Task).where(col(Task.id) == task_id))).first()
+            assert task is not None
+            actor = (await session.exec(select(Agent).where(col(Agent.id) == worker_id))).first()
+            assert actor is not None
+
+            updated = await tasks_api.update_task(
+                payload=TaskUpdate(status="in_progress", status_reason="starting work"),
+                task=task,
+                session=session,
+                actor=ActorContext(actor_type="agent", agent=actor),
+            )
+
+            assert updated.status == "in_progress"
+            assert updated.status_reason == "starting work"
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_non_lead_agent_can_update_status_for_unassigned_task() -> None:
     engine = await _make_engine()
     try:

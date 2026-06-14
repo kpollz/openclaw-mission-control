@@ -1085,6 +1085,7 @@ class TaskService:
         allowed_fields = {
             "assigned_agent_id",
             "status",
+            "status_reason",
             "output",
             "depends_on_task_ids",
             "tag_ids",
@@ -1353,7 +1354,7 @@ class TaskService:
                 code="task_assignee_mismatch",
                 message="Agents can only change status on tasks assigned to them.",
             )
-        allowed_fields = {"status", "output", "comment", "custom_field_values"}
+        allowed_fields = {"status", "status_reason", "output", "comment", "custom_field_values"}
         if (
             update.depends_on_task_ids is not None
             or update.tag_ids is not None
@@ -1361,7 +1362,8 @@ class TaskService:
         ):
             raise self._task_update_forbidden_error(
                 code="task_update_field_forbidden",
-                message="Agents may only update status, comment, and custom field values.",
+                message="Agents may only update status, status_reason, output, comment, "
+                        "and custom field values.",
             )
         if "status" in update.updates:
             from fastapi import HTTPException, status
