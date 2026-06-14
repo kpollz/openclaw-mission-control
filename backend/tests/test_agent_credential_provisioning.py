@@ -232,9 +232,12 @@ def test_main_tools_and_heartbeat_reference_credential_path():
     assert ctx["credential_path"] in heartbeat
 
 
-def test_tools_includes_skill_fetch_curl():
+def test_tools_points_to_skill_as_single_source():
     tools = _render("PROJECT_TOOLS.md.j2", _worker_context())
-    assert "/api/v1/agent/skills/mission-control/SKILL.md" in tools
+    # TOOLS no longer teaches API mechanics; it points at the skill.
+    assert "skills/mission-control/SKILL.md" in tools
+    assert "$(jq" not in tools
+    assert "AUTH_TOKEN=" not in tools
 
 
 # ---------------------------------------------------------------------------
@@ -287,6 +290,7 @@ def test_render_skill_document_rejects_unknown_name():
 def test_wakeup_text_embeds_credential_write_instruction():
     class _Stub:
         name = "Alice"
+        is_project_lead = False
 
     credential_json = agent_provisioning._credential_json(
         base_url="http://localhost:9999",
@@ -302,17 +306,52 @@ def test_wakeup_text_embeds_credential_write_instruction():
         verb="provisioned",
         credential_path=_CREDENTIAL_PATH,
         credential_json=credential_json,
+        project_id="proj-1",
     )
     assert _CREDENTIAL_PATH in text
     assert "TKN-SECRET-WORKER" in text  # token is delivered here, once
-    assert "jq -r .auth_token" in text
+    # New contract: read the credential file then inline values into curl — no $(...)/jq.
+    assert "skills/mission-control/SKILL.md" in text
+    assert f"cat {_CREDENTIAL_PATH}" in text
+    assert "$(jq" not in text
+    # A worker gets no Board Chat intro step.
+    assert "BOARD CHAT" not in text
     # Backward-compat guarantee preserved from the prior wakeup contract.
     assert "If BOOTSTRAP.md exists, read it first, then read AGENTS.md." in text
+
+
+def test_wakeup_text_lead_includes_board_chat_intro():
+    class _Stub:
+        name = "Ava"
+        is_project_lead = True
+
+    credential_json = agent_provisioning._credential_json(
+        base_url="http://localhost:9999",
+        auth_token="TKN-SECRET-LEAD",
+        agent_id="agent-lead",
+        agent_name="Ava",
+        role="lead",
+        project_id="proj-7",
+        workspace_path=_WORKSPACE_PATH,
+    )
+    text = agent_provisioning._wakeup_text(
+        _Stub(),
+        verb="provisioned",
+        credential_path=_CREDENTIAL_PATH,
+        credential_json=credential_json,
+        project_id="proj-7",
+    )
+    # Lead is told to announce readiness on Board Chat (not OpenClaw chat).
+    assert "BOARD CHAT" in text
+    assert '"tags":["chat"]' in text
+    assert "/api/v1/agent/projects/proj-7/memory" in text
+    assert "Ava" in text
 
 
 def test_wakeup_text_without_credential_is_plain():
     class _Stub:
         name = "Alice"
+        is_project_lead = False
 
     text = agent_provisioning._wakeup_text(_Stub(), verb="updated")
     assert "Hello Alice" in text
@@ -328,7 +367,9 @@ def test_mission_control_agent_footer_has_no_token_and_names_required_files():
     footer = mission_control_agent_footer()
     assert "mission_control_credential.json" in footer
     assert "skills/mission-control/SKILL.md" in footer
-    assert "AUTH_TOKEN=$(jq -r .auth_token" in footer
+    # Footer points at the skill; it must not teach a jq-substitution command or carry a token.
+    assert "$(jq" not in footer
+    assert "jq -r .auth_token" not in footer
 
 
 @pytest.mark.asyncio

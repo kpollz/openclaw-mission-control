@@ -6,69 +6,51 @@ _This workspace may start without a human present. Do not wait for replies._
 There is no memory yet. Create what is missing and proceed without blocking.
 
 ## Bootstrap steps (run in order)
-1) Ensure required tools are installed:
 
-```bash
-for tool in curl jq; do
-  if ! command -v "$tool" >/dev/null 2>&1; then
-    echo "Missing required tool: $tool" >&2
-    echo "Install examples:" >&2
-    echo "  Ubuntu/Debian: sudo apt-get update && sudo apt-get install -y curl jq" >&2
-    echo "  RHEL/CentOS:   sudo dnf install -y curl jq" >&2
-    echo "  macOS (brew):  brew install curl jq" >&2
-    exit 1
-  fi
-done
+1) Ensure required tools are installed (`curl`, `jq`). If missing, install them
+   (e.g. `sudo apt-get install -y curl jq`).
+
+2) Ensure your credential file exists at:
+
+```
+{{ credential_path }}
 ```
 
-2) Verify API reachability:
+The Mission Control provisioning message you received contains the EXACT JSON to write.
+If the file is missing, write that JSON to the path above now (overwrite if present).
+
+3) Fetch the mission-control skill into your workspace. Read your credential file first to
+   get `base_url` and `auth_token`, then write those values straight into the commands
+   (no shell variables, no `$(...)` — see the skill for why):
 
 ```bash
-curl -fsS "{{ base_url }}/healthz" >/dev/null
-```
-
-3) Ensure your credential file exists at `{{ credential_path }}`.
-- The Mission Control provisioning message you received contains the EXACT JSON to write.
-- If the file is missing, write that JSON to `{{ credential_path }}` now (overwrite if present).
-- Confirm it parses and holds a token:
-
-```bash
-CRED="{{ credential_path }}"
-jq -e .auth_token "$CRED" >/dev/null || echo "Credential file missing/invalid — write it from the provisioning message" >&2
-```
-
-4) Fetch the mission-control skill into your workspace:
-
-```bash
-CRED="{{ credential_path }}"
-BASE_URL=$(jq -r .base_url "$CRED")
-AUTH_TOKEN=$(jq -r .auth_token "$CRED")
+cat {{ credential_path }}
 mkdir -p skills/mission-control/references
-curl -fsS "$BASE_URL/api/v1/agent/skills/mission-control/SKILL.md" \
-  -H "X-Agent-Token: $AUTH_TOKEN" -o skills/mission-control/SKILL.md
-curl -fsS "$BASE_URL/api/v1/agent/skills/mission-control/references/api_schema.md" \
-  -H "X-Agent-Token: $AUTH_TOKEN" -o skills/mission-control/references/api_schema.md
+curl -fsS "BASE_URL_VALUE/api/v1/agent/skills/mission-control/SKILL.md" \
+  -H "X-Agent-Token: TOKEN_VALUE" -o skills/mission-control/SKILL.md
+curl -fsS "BASE_URL_VALUE/api/v1/agent/skills/mission-control/references/api_schema.md" \
+  -H "X-Agent-Token: TOKEN_VALUE" -o skills/mission-control/references/api_schema.md
 ```
+
+4) Read `skills/mission-control/SKILL.md`. It is the single source of truth for every API
+   call from now on.
 
 5) Ensure required files exist:
 - `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `USER.md`, `TOOLS.md`, `MEMORY.md`, `HEARTBEAT.md`, `BOOTSTRAP.md`
 - `{{ credential_path }}` (auth token + IDs)
 - `skills/mission-control/SKILL.md` (API guidance)
 
-6) Create `memory/` if missing.
-
-7) Ensure today's daily file exists: `memory/YYYY-MM-DD.md`.
+6) Create `memory/` if missing, and ensure today's daily file exists: `memory/YYYY-MM-DD.md`.
 
 {% if is_lead %}
-8) Immediately check in to Mission Control (do this before any task orchestration):
+7) Check in to Mission Control using the heartbeat call from the skill (do this before any
+   task orchestration).
 
-```bash
-CRED="{{ credential_path }}"
-BASE_URL=$(jq -r .base_url "$CRED")
-AUTH_TOKEN=$(jq -r .auth_token "$CRED")
-curl -fsS -X POST "$BASE_URL/api/v1/agent/heartbeat" \
-  -H "X-Agent-Token: $AUTH_TOKEN"
-```
+8) If you have not already introduced yourself on the project BOARD CHAT, do it now. The
+   human reads Board Chat inside Mission Control — they do NOT see your OpenClaw session, so
+   always use Board Chat (a project memory POST with `tags:["chat"]`, see the skill) for
+   anything the human should see. Post a short intro: you are online, what you will do next,
+   and that they can talk to you here.
 
 9) Initialize current delivery status in `MEMORY.md`:
 - set objective if missing
@@ -77,27 +59,11 @@ curl -fsS -X POST "$BASE_URL/api/v1/agent/heartbeat" \
 
 10) Add one line to `MEMORY.md` noting bootstrap completion date.
 {% else %}
-8) If any fields are blank, leave them blank. Do not invent values.
+7) Check in to Mission Control using the heartbeat call from the skill to mark yourself
+   online. If any required fields are blank, leave them blank — do not invent values.
 
-9) Load credentials from `{{ credential_path }}` and check in:
-- `BASE_URL`
-- `AUTH_TOKEN`
-- `PROJECT_ID={{ project_id }}`
-to Mission Control to mark the agent online:
-
-```bash
-CRED="{{ credential_path }}"
-BASE_URL=$(jq -r .base_url "$CRED")
-AUTH_TOKEN=$(jq -r .auth_token "$CRED")
-PROJECT_ID=$(jq -r .project_id "$CRED")
-curl -fsS -X POST "$BASE_URL/api/v1/agent/heartbeat" \
-  -H "X-Agent-Token: $AUTH_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "{\"name\":\"{{ agent_name }}\",\"project_id\":\"$PROJECT_ID\",\"status\":\"online\"}"
-```
-
-10) Write a short note to `MEMORY.md` that bootstrap completed and list any
-missing fields (e.g., user name, timezone).
+8) Write a short note to `MEMORY.md` that bootstrap completed and list any missing fields
+   (e.g., user name, timezone).
 {% endif %}
 
 Final step: Delete this file. (Your credential file and skill stay; only this bootstrap is removed.)

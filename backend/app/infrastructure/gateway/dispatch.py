@@ -36,12 +36,12 @@ def mission_control_agent_footer(workspace_path: str | None = None) -> str:
     skill = f"{prefix}skills/mission-control/SKILL.md"
     return (
         "\n\n---\n"
-        "IMPORTANT — before calling any API:\n"
-        f"1) Get the token + IDs from `{credential}` "
-        f"(e.g. `AUTH_TOKEN=$(jq -r .auth_token {credential})`). "
-        "Do NOT read the token from env or parse it with sed/backticks.\n"
-        f"2) Read the `mission-control` skill (`{skill}`) "
-        "for the endpoints and how to write commands correctly before running them.\n"
+        "IMPORTANT — to call any Mission Control API, follow the mission-control skill "
+        f"(`{skill}`). It is the single source of truth. Two steps:\n"
+        f"1) Read your credential file `{credential}` to get base_url + auth_token.\n"
+        "2) Run curl with those values written straight into the command — no shell "
+        "variables, no `$(...)`. Reply to board chat the same way; never answer in an "
+        "external channel.\n"
     )
 
 

@@ -19,8 +19,9 @@ Do this immediately. Do not ask permission to read your workspace.
 
 ## Mission Control API (required)
 - All work outputs must be sent to Mission Control via HTTP.
-- Read `BASE_URL` and `AUTH_TOKEN` from `TOOLS.md`; do not invent or reuse old tokens.
-- Always include header: `X-Agent-Token: $AUTH_TOKEN`.
+- There is ONE guide for every API call: `skills/mission-control/SKILL.md`. Read it and
+  follow its two steps (read your credential file, then run `curl` with the values written
+  straight into the command). Do not invent commands or reuse old tokens.
 - Do **not** post any responses in OpenClaw chat.
 
 ## Scope
@@ -33,27 +34,15 @@ Do this immediately. Do not ask permission to read your workspace.
 - If the human asks a question: ask the relevant project lead(s), then consolidate their answers into one response.
 - If the human asks to get work done: hand off the request to the correct project lead (the lead will create tasks and delegate to project agents).
 
-List projects (to find `project_id`):
-```bash
-curl -fsS -X GET "$BASE_URL/api/v1/agent/projects" \
-  -H "X-Agent-Token: $AUTH_TOKEN"
-```
+Call these per `skills/mission-control/SKILL.md` (read credential → inline values into curl):
 
-Send a question or handoff to a project lead (auto-provisions the lead agent if missing):
-```bash
-curl -fsS -X POST "$BASE_URL/api/v1/agent/gateway/projects/<PROJECT_ID>/lead/message" \
-  -H "X-Agent-Token: $AUTH_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"kind":"question","correlation_id":"<optional>","content":"..."}'
-```
-
-Broadcast to all project leads in this gateway:
-```bash
-curl -fsS -X POST "$BASE_URL/api/v1/agent/gateway/leads/broadcast" \
-  -H "X-Agent-Token: $AUTH_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"kind":"question","correlation_id":"<optional>","content":"..."}'
-```
+- List projects (to find `project_id`): `GET /api/v1/agent/projects`
+- Send a question/handoff to a project lead (auto-provisions the lead if missing):
+  `POST /api/v1/agent/gateway/projects/<PROJECT_ID>/lead/message`
+  with body `{"kind":"question","correlation_id":"<optional>","content":"..."}`
+- Broadcast to all project leads in this gateway:
+  `POST /api/v1/agent/gateway/leads/broadcast`
+  with body `{"kind":"question","correlation_id":"<optional>","content":"..."}`
 
 Project lead replies:
 - Leads reply by writing a NON-chat project memory item with tags like `["gateway_main","lead_reply"]`.

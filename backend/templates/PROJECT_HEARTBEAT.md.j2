@@ -7,35 +7,16 @@
 This file defines the main agent heartbeat. You are not tied to any project.
 
 ## Required inputs
-- BASE_URL: `{{ base_url }}`
-- AUTH_TOKEN: load from `{{ credential_path }}` (do NOT inline)
-- AGENT_NAME
-- AGENT_ID
+- Credentials (BASE_URL, AUTH_TOKEN, AGENT_ID): read from `{{ credential_path }}`.
+- API guidance: `skills/mission-control/SKILL.md` — the single source of truth for every
+  API call. Read it; do not improvise commands.
 
-Read `{{ credential_path }}` at the start of every heartbeat cycle.
-For API guidance, read `skills/mission-control/SKILL.md` (fetch it once per TOOLS.md).
+If the credential file or skill is missing, stop and request a provisioning update.
 
-If any required input is missing, stop and request a provisioning update.
-
-## API source of truth (OpenAPI)
-Use OpenAPI role tags for main-agent endpoints.
-
-```bash
-curl -s "{{ base_url }}/openapi.json" -o /tmp/openapi.json
-jq -r '
-  .paths | to_entries[] | .key as $path
-  | .value | to_entries[]
-  | select((.value.tags // []) | index("agent-main"))
-  | ((.value.summary // "") | gsub("\\s+"; " ")) as $summary
-  | ((.value.description // "") | split("\n")[0] | gsub("\\s+"; " ")) as $desc
-  | "\(.key|ascii_upcase)\t\($path)\t\($summary)\t\($desc)"
-' /tmp/openapi.json | sort
-```
-
-## Mission Control Response Protocol
-- All outputs must be sent to Mission Control via HTTP.
-- Always include `X-Agent-Token: $AUTH_TOKEN` where `AUTH_TOKEN` is loaded from
-  `{{ credential_path }}` (`jq -r .auth_token "{{ credential_path }}"`).
+## How to call the API
+Follow `skills/mission-control/SKILL.md`: read the credential file, then run `curl` with
+the values written straight into the command. Do not build shell variables or use
+`$(...)`. Endpoints for your role are listed in `skills/mission-control/references/api_schema.md`.
 
 ## Schedule
 - If a heartbeat schedule is configured, send a lightweight check-in only.
@@ -44,27 +25,19 @@ jq -r '
 - If you have any pending `LEAD REQUEST: ASK USER` messages in OpenClaw chat, handle them promptly (see AGENTS.md).
 
 ## Heartbeat checklist
-1) Check in immediately:
-- Use the `agent-main` heartbeat endpoint (`POST /api/v1/agent/heartbeat`).
-- Startup check-in example:
-
-```bash
-AUTH_TOKEN=$(jq -r .auth_token "{{ credential_path }}")
-curl -s -X POST "{{ base_url }}/api/v1/agent/heartbeat" \
-  -H "X-Agent-Token: $AUTH_TOKEN"
-```
-
-- If check-in fails due to 5xx/network, stop and retry next heartbeat.
-- During that failure window, do **not** write memory updates (`MEMORY.md`, daily memory files).
+1) Check in immediately using the heartbeat call from the skill
+   (`POST /api/v1/agent/heartbeat`).
+2) If check-in fails due to 5xx/network, stop and retry next heartbeat. During that
+   failure window, do **not** write memory updates (`MEMORY.md`, daily memory files).
 
 ## Memory Maintenance (every 2-3 days)
 1) Read recent `memory/YYYY-MM-DD.md` files.
-2) Update `MEMORY.md` with durable facts/decisions.
-3) Update `MEMORY.md` with evolving preferences and identity.
-4) Prune stale content.
+2) Update `MEMORY.md` with durable facts/decisions and evolving preferences/identity.
+3) Prune stale content.
 
 ## Common mistakes (avoid)
 - Claiming project tasks without instruction.
+- Improvising API commands instead of following the skill.
 
 ## When to say HEARTBEAT_OK
 You may say `HEARTBEAT_OK` only when:
@@ -84,52 +57,18 @@ Do real work with low noise while sharing useful knowledge across the project.
 {% endif %}
 
 ## Required Inputs
-- `BASE_URL`: `{{ base_url }}`
-- `AUTH_TOKEN`: load from `{{ credential_path }}` (do NOT inline)
-- `AGENT_NAME`
-- `AGENT_ID`
-- `PROJECT_ID`
+- Credentials (BASE_URL, AUTH_TOKEN, AGENT_ID, PROJECT_ID): read from `{{ credential_path }}`.
+- API guidance: `skills/mission-control/SKILL.md` — the single source of truth for every
+  API call. Read it; do not improvise commands.
 
-Read `{{ credential_path }}` at the start of every heartbeat cycle.
-For API guidance, read `skills/mission-control/SKILL.md` (fetch it once per TOOLS.md).
+If the credential file or skill is missing, stop and request a provisioning update.
 
-If any required input is missing, stop and request a provisioning update.
-
-## API Source of Truth
-Use OpenAPI for endpoint/payload details instead of static endpoint assumptions.
-
-```bash
-curl -fsS "{{ base_url }}/openapi.json" -o /tmp/openapi.json
-```
-
-When selecting endpoints, prioritize `x-llm-intent`, `x-when-to-use`, and `x-routing-policy`
-against the current task objective before choosing a path/method.
-
-{% if is_lead %}
-Lead-focused operation filter:
-
-```bash
-jq -r '
-  .paths | to_entries[] | .key as $path
-  | .value | to_entries[]
-  | select((.value.tags // []) | index("agent-lead"))
-  | ((.value.summary // "") | gsub("\\s+"; " ")) as $summary
-  | "\(.key|ascii_upcase)\t\($path)\t\(.value.operationId // "-")\t\(.value[\"x-llm-intent\"] // "-")\t\(.value[\"x-when-to-use\"] // [] | join(\" | \"))\t\(.value[\"x-routing-policy\"] // [] | join(\" | \"))\t\($summary)"
-' /tmp/openapi.json | sort
-```
-{% else %}
-Worker-focused operation filter:
-
-```bash
-jq -r '
-  .paths | to_entries[] | .key as $path
-  | .value | to_entries[]
-  | select((.value.tags // []) | index("agent-worker"))
-  | ((.value.summary // "") | gsub("\\s+"; " ")) as $summary
-  | "\(.key|ascii_upcase)\t\($path)\t\(.value.operationId // "-")\t\(.value[\"x-llm-intent\"] // "-")\t\(.value[\"x-when-to-use\"] // [] | join(\" | \"))\t\(.value[\"x-routing-policy\"] // [] | join(\" | \"))\t\($summary)"
-' /tmp/openapi.json | sort
-```
-{% endif %}
+## How to call the API
+Follow `skills/mission-control/SKILL.md`: read the credential file, then run `curl` with
+the values written straight into the command. Do not build shell variables or use
+`$(...)`. Endpoints for your role are listed in `skills/mission-control/references/api_schema.md`;
+prioritize `x-llm-intent`, `x-when-to-use`, and `x-routing-policy` against the current
+objective before choosing a path/method.
 
 ## Schedule
 - Heartbeat cadence is controlled by gateway heartbeat config.
@@ -144,14 +83,13 @@ jq -r '
 - If pre-flight fails due to 5xx/network, do not write memory or task updates.
 
 ## Pre-Flight Checks (Every Heartbeat)
-1) Confirm `BASE_URL`, `AUTH_TOKEN`, and `PROJECT_ID` from `{{ credential_path }}` match this workspace.
-2) Verify API access:
-- `GET {{ base_url }}/healthz`
-- `GET {{ base_url }}/api/v1/agent/projects`
-- `GET {{ base_url }}/api/v1/agent/projects/{{ project_id }}/tasks`
-3) If any check fails, stop and retry next heartbeat.
-4) If access fails with 401, re-read `{{ credential_path }}` for the current token and do not reuse older tokens.
-5) If access fails with 403, do not attempt privilege escalation; ask the lead/user for assignment or access.
+1) Confirm credentials from `{{ credential_path }}` match this workspace.
+2) Verify API access with a heartbeat check-in (see the skill).
+3) If a call fails with 401, re-read `{{ credential_path }}` for the current token and do
+   not reuse older tokens.
+4) If a call fails with 403, do not attempt privilege escalation; ask the lead/user for
+   assignment or access.
+5) If any check fails with 5xx/network, stop and retry next heartbeat.
 
 ## Shared Context Pull
 Before execution:
@@ -178,12 +116,11 @@ Before execution:
 - `max_agents`: `{{ project_rule_max_agents }}`
 {% else %}
 ### Project Worker Loop
-1) Check in via heartbeat endpoint.
+1) Check in via the heartbeat call from the skill.
 2) Continue one `in_progress` task; else pick one assigned `inbox` task; else run assist mode.
 3) **Before doing any work on a task, set it to `in_progress` first.** Always read the
    task's current `status`; if it is `inbox` and you are about to execute it, PATCH
-   `status=in_progress` (with a short `status_reason`) BEFORE running any work. Never
-   work on a task while it is still `inbox`.
+   `status=in_progress` (with a short `status_reason`) BEFORE running any work.
 4) Refresh task context and plan for the active task.
 5) Execute and post only high-signal task comment updates.
 6) **Fill the `output` field with the real deliverable**, then move to `review`. Local

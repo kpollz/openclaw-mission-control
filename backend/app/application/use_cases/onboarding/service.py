@@ -366,22 +366,19 @@ class ProjectOnboardingService:
             "Do NOT respond in OpenClaw chat.\n"
             "All onboarding responses MUST be sent to Mission Control via API.\n"
             f"Mission Control base URL: {base_url}\n"
-            "Load the token from your credential file and pass it as X-Agent-Token "
-            "(`AUTH_TOKEN=$(jq -r .auth_token mission_control_credential.json)`). "
-            "Do NOT read the token from TOOLS.md/USER.md or parse it with sed/backticks.\n"
+            "To call the API, follow `skills/mission-control/SKILL.md`: read your credential "
+            "file, then run curl with the base_url and auth_token written straight into the "
+            "command (no shell variables, no $(...)).\n"
+            "ALWAYS send the JSON body via a temp file, never with -d '...': write it with a "
+            "quoted heredoc (cat > /tmp/onb.json <<'JSON' ... JSON) then --data @/tmp/onb.json. "
+            "Inlining -d '...' breaks on any apostrophe (e.g. \"I'll type it\").\n"
             "Onboarding response endpoint:\n"
             f"POST {base_url}/api/v1/agent/projects/{project.id}/onboarding\n"
-            "QUESTION example (send JSON body exactly as shown):\n"
-            f'curl -s -X POST "{base_url}/api/v1/agent/projects/{project.id}/onboarding" '
-            '-H "X-Agent-Token: $AUTH_TOKEN" '
-            '-H "Content-Type: application/json" '
-            '-d \'{"question":"...","options":[{"id":"1","label":"..."},'
-            '{"id":"2","label":"..."}]}\'\n'
-            "COMPLETION example (send JSON body exactly as shown):\n"
-            f'curl -s -X POST "{base_url}/api/v1/agent/projects/{project.id}/onboarding" '
-            '-H "X-Agent-Token: $AUTH_TOKEN" '
-            '-H "Content-Type: application/json" '
-            '-d \'{"status":"complete","project_type":"goal","objective":"...",'
+            "QUESTION JSON body (send exactly this shape):\n"
+            '{"question":"...","options":[{"id":"1","label":"..."},'
+            '{"id":"2","label":"..."}]}\n'
+            "COMPLETION JSON body (send exactly this shape):\n"
+            '{"status":"complete","project_type":"goal","objective":"...",'
             '"success_metrics":{"metric":"...","target":"..."},'
             '"target_date":"YYYY-MM-DD",'
             '"user_profile":{"preferred_name":"...","pronouns":"...",'
@@ -390,7 +387,7 @@ class ProjectOnboardingService:
             '"communication_style":"direct, concise, practical","emoji":":gear:"},'
             '"autonomy_level":"balanced","verbosity":"concise",'
             '"output_format":"bullets","update_cadence":"daily",'
-            '"custom_instructions":"..."}}\'\n'
+            '"custom_instructions":"..."}}\n'
             "ENUMS:\n"
             "- project_type: goal | general\n"
             "- lead_agent.autonomy_level: ask_first | balanced | autonomous\n"

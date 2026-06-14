@@ -9,215 +9,222 @@
 {% endif -%}
 ---
 name: mission-control
-description: Call the Mission Control HTTP API safely from this workspace. Use whenever you need to read/write tasks, approvals, project memory, agents, or send a heartbeat. Loads the auth token from mission_control_credential.json — never hardcode the token.
+description: The ONE guide for calling the Mission Control HTTP API. Read your credential file, then run curl with the values written straight into the command. Any request with a JSON body goes through a temp file. Use it for tasks, approvals, project memory, board chat, heartbeats, onboarding — every API call.
 ---
 
 # Mission Control skill
 
-This workspace already contains:
+This is the single source of truth for calling the API. Other files (TOOLS.md,
+HEARTBEAT.md, AGENTS.md, BOOTSTRAP.md) do not repeat these commands — they point here.
 
-- `mission_control_credential.json` — the only source of truth for your token + IDs.
-- `references/api_schema.md` — the full agent endpoint catalogue grouped by role.
+## Step 1 — Read your credential file
 
-## Rule 0 — Load credentials, never inline them
+Open this file and read the values inside it:
 
-Before any API call, load them into shell variables:
-
-```bash
-BASE_URL=$(jq -r .base_url mission_control_credential.json)
-AUTH_TOKEN=$(jq -r .auth_token mission_control_credential.json)
-AGENT_ID=$(jq -r .agent_id mission_control_credential.json)
-{% if project_id is defined %}PROJECT_ID=$(jq -r .project_id mission_control_credential.json)
-{% endif %}```
-
-Python fallback (when `jq` is missing):
-
-```bash
-AUTH_TOKEN=$(python3 -c 'import json; print(json.load(open("mission_control_credential.json"))["auth_token"])')
+```
+{{ credential_path | default("mission_control_credential.json") }}
 ```
 
-**Forbidden:**
-- Embedding the token literal in any command, file, log, comment, or chat message.
-- Parsing the token out of `TOOLS.md`/`HEARTBEAT.md` with `sed`, `grep`, or backtick subshells. Those files no longer contain the token.
-- Pulling the token from `$AUTH_TOKEN` if you did not set it yourself this shell.
+```bash
+cat {{ credential_path | default("mission_control_credential.json") }}
+```
 
-## Rule 1 — Safe command pattern
+It is JSON with: `base_url` (e.g. `{{ base_url }}`), `auth_token`, `agent_id`{% if project_id is defined %}, `project_id` (`{{ project_id }}`){% endif %}.
 
-Always use this exact shape:
+## Step 2 — Run curl with those values written straight in
+
+Take the `base_url` and `auth_token` you just read and **type them directly into the
+command**. A request with no body (like a heartbeat) is a single line:
 
 ```bash
-curl -fsS -X <METHOD> "$BASE_URL<PATH>" \
-  -H "X-Agent-Token: $AUTH_TOKEN" \
+curl -sS -X POST "BASE_URL_VALUE/api/v1/agent/heartbeat" \
+  -H "X-Agent-Token: TOKEN_VALUE" \
+  -w '\nHTTP %{http_code}\n'
+```
+
+So if `base_url` is `{{ base_url }}` and `auth_token` is `abc123...`:
+
+```bash
+curl -sS -X POST "{{ base_url }}/api/v1/agent/heartbeat" \
+  -H "X-Agent-Token: abc123..." \
+  -w '\nHTTP %{http_code}\n'
+```
+
+### The rules that keep this from breaking
+
+- **Do NOT make shell variables.** No `AUTH_TOKEN=...`, no `BASE_URL=...`, no `CRED=...`.
+  You already read the values in Step 1 — just write them in.
+- **Do NOT use `$(...)`, backticks, or `jq` inside the curl command.** The workspace
+  shell is `dash`; gluing `$(jq ...)` into a command is the #1 cause of
+  `Syntax error: ")" unexpected`. Literal values never break.
+- **Use `-sS` and `-w '\nHTTP %{http_code}\n'`, NOT `-f`.** `-f` hides the response body
+  on errors, so you never see WHY a 4xx happened. With `-sS` the server's error detail
+  (e.g. `{"detail":{"message":"Unknown custom field keys",...}}`) always prints — read it.
+- The token will appear inside the curl command — that is fine. But never copy it into
+  task comments, project memory, chat messages, screenshots, or any file you write.
+
+## JSON request bodies — ALWAYS use a temp file (never `-d '...'`)
+
+This is mandatory. Do **not** inline a JSON body with `-d '{...}'`. A single apostrophe in
+your data (e.g. `"Other (I'll type it)"`) breaks the shell quoting and throws
+`Syntax error: ")" unexpected`. Instead, write the body to a file with a **quoted
+heredoc** (`<<'JSON'` — the quotes stop the shell touching anything inside) and send it
+with `--data @file`:
+
+```bash
+cat > /tmp/body.json <<'JSON'
+{"status":"review","output":"It's done; see s3://bucket/report.pdf","comment":"Ready for review"}
+JSON
+curl -sS -X PATCH "BASE_URL_VALUE/api/v1/agent/projects/PROJECT_ID_VALUE/tasks/TASK_ID_VALUE" \
+  -H "X-Agent-Token: TOKEN_VALUE" \
   -H "Content-Type: application/json" \
-  -d '<JSON BODY>'
+  --data @/tmp/body.json \
+  -w '\nHTTP %{http_code}\n'
 ```
 
-- `-f` makes curl exit non-zero on 4xx/5xx so failed requests do not look successful.
-- `-sS` silences progress but keeps errors.
+Optional: check the file is valid JSON before sending with `jq . /tmp/body.json` (that
+`jq` reads a saved file on its own line — it is not glued into curl, so it is safe).
 
-### Writing JSON bodies WITHOUT shell errors
+## When a call fails
 
-The shell, not the API, is what breaks most commands. A body like
-`-d "{\"x\":\"$(...)\"}"` or one containing `)`/`` ` ``/`$(` inside double quotes throws
-errors such as `Syntax error: ")" unexpected`. Avoid this completely:
+The `HTTP %{http_code}` line plus the printed body tell you exactly what to fix:
 
-- For any non-trivial body, write the JSON to a file with a **quoted heredoc**, then send
-  it with `--data @file`. The quoted `'JSON'` delimiter stops the shell from touching
-  anything inside:
+- **`422`** → your payload is wrong. READ the body — it names the bad field, e.g.
+  `unknown_field_keys`, `missing_field_keys`, or a UUID parse error. Fix that field and retry.
+- **`403`** → you sent a field your role may not change, or you lack permission. Workers may
+  set `status`, `status_reason`, `output`, `comment`, and custom field values — nothing
+  else (no `title`/`description`/`priority`/`assigned_agent_id`/`tag_ids`).
+- **`401`** → token is stale; re-read `{{ credential_path | default("mission_control_credential.json") }}` and retry once.
+- **`409`** → a rule blocked it (most often empty `output` on review/done →
+  `task_output_required`). Read `detail.message`.
+- **`5xx`/network** → do not write memory or task updates this cycle; retry next heartbeat.
 
-  ```bash
-  cat > /tmp/body.json <<'JSON'
-  {"status":"review","output":"Built the report; 3 charts; link: s3://...","comment":"Ready for review"}
-  JSON
-  curl -fsS -X PATCH "$BASE_URL/api/v1/agent/projects/$PROJECT_ID/tasks/$TASK_ID" \
-    -H "X-Agent-Token: $AUTH_TOKEN" -H "Content-Type: application/json" \
-    --data @/tmp/body.json
-  ```
+## Finding endpoints
 
-- If you build the body inline, wrap it in **single quotes** (`-d '{"k":"v"}'`) and never
-  put `$(...)`, backticks, or unescaped `"`/`)` inside it.
-- To inject a dynamic value safely, build the JSON with `jq` instead of string-glue:
-
-  ```bash
-  jq -n --arg out "$RESULT" '{status:"review", output:$out}' > /tmp/body.json
-  ```
-
-- Validate before sending if unsure: `jq . /tmp/body.json` must print without error.
-
-## Rule 2 — Endpoint discovery
-
-You are an **{{ role_tag }}** agent. Use only endpoints tagged with your role:
+You are an **{{ role_tag }}** agent. The full endpoint catalogue (grouped by role) is in
+`references/api_schema.md`. For the live spec, fetch the OpenAPI doc once and filter to
+your role:
 
 ```bash
-curl -fsS "$BASE_URL/openapi.json" -o /tmp/openapi.json
-jq -r '
-  .paths | to_entries[] | .key as $path
-  | .value | to_entries[]
+curl -sS "{{ base_url }}/openapi.json" -o /tmp/openapi.json
+jq -r '.paths | to_entries[] | .key as $p | .value | to_entries[]
   | select((.value.tags // []) | index("{{ role_tag }}"))
-  | "\(.key|ascii_upcase)\t\($path)\t\(.value.operationId // "-")\t\(.value[\"x-llm-intent\"] // "-")"
-' /tmp/openapi.json | sort
+  | "\(.key|ascii_upcase)\t\($p)\t\(.value[\"x-llm-intent\"] // \"-\")"' /tmp/openapi.json | sort
 ```
 
-The catalogue at `references/api_schema.md` lists the same endpoints in human form. Open it when you are not sure which path to use.
+Before writing an unfamiliar field, check its schema:
+`jq '.components.schemas.TaskCreate' /tmp/openapi.json`.
 
-## Known-good commands (verified)
+## Known-good calls
 
-### Heartbeat (all roles)
+Heartbeat (all roles, no body):
 
 ```bash
-curl -fsS -X POST "$BASE_URL/api/v1/agent/heartbeat" \
-  -H "X-Agent-Token: $AUTH_TOKEN"
+curl -sS -X POST "BASE_URL_VALUE/api/v1/agent/heartbeat" \
+  -H "X-Agent-Token: TOKEN_VALUE" -w '\nHTTP %{http_code}\n'
 ```
 
 {% if project_id is defined %}
-### List active tasks on your project
+List active tasks (no body):
 
 ```bash
-curl -fsS "$BASE_URL/api/v1/agent/projects/$PROJECT_ID/tasks?status=inbox,in_progress,review" \
-  -H "X-Agent-Token: $AUTH_TOKEN"
+curl -sS "BASE_URL_VALUE/api/v1/agent/projects/PROJECT_ID_VALUE/tasks?status=inbox,in_progress,review" \
+  -H "X-Agent-Token: TOKEN_VALUE" -w '\nHTTP %{http_code}\n'
 ```
 
-### Add a task comment
+Claim a task (inbox → in_progress) BEFORE working:
 
 ```bash
-TASK_ID="<task uuid>"
-curl -fsS -X POST "$BASE_URL/api/v1/agent/projects/$PROJECT_ID/tasks/$TASK_ID/comments" \
-  -H "X-Agent-Token: $AUTH_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"message":"**Update**\n- short update\n\n**Evidence**\n- proof\n\n**Next**\n- next step"}'
-```
-
-### Claim a task (inbox → in_progress) BEFORE working
-
-```bash
-TASK_ID="<task uuid>"
-curl -fsS -X PATCH "$BASE_URL/api/v1/agent/projects/$PROJECT_ID/tasks/$TASK_ID" \
-  -H "X-Agent-Token: $AUTH_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"status":"in_progress","status_reason":"starting work"}'
-```
-
-### Move a task to review (output is REQUIRED)
-
-```bash
-TASK_ID="<task uuid>"
-cat > /tmp/review.json <<'JSON'
-{"status":"review","output":"<the real deliverable: summary + links/paths the human can open>","status_reason":"deliverable ready","comment":"**Update**\n- Ready for review.\n\n**Evidence**\n- ..."}
+cat > /tmp/claim.json <<'JSON'
+{"status":"in_progress","status_reason":"starting work"}
 JSON
-curl -fsS -X PATCH "$BASE_URL/api/v1/agent/projects/$PROJECT_ID/tasks/$TASK_ID" \
-  -H "X-Agent-Token: $AUTH_TOKEN" -H "Content-Type: application/json" \
-  --data @/tmp/review.json
+curl -sS -X PATCH "BASE_URL_VALUE/api/v1/agent/projects/PROJECT_ID_VALUE/tasks/TASK_ID_VALUE" \
+  -H "X-Agent-Token: TOKEN_VALUE" -H "Content-Type: application/json" \
+  --data @/tmp/claim.json -w '\nHTTP %{http_code}\n'
 ```
 
-### Reply to project BOARD CHAT
+Move a task to review (output is REQUIRED):
 
-Board chat lives in Mission Control, NOT in WeChat/Slack/SMS or your OpenClaw chat. When
-you receive a `PROJECT BOARD CHAT` message, reply ONLY through this API — never in an
-external channel. The `["chat"]` tag is what makes it appear in the board chat thread.
+```bash
+cat > /tmp/review.json <<'JSON'
+{"status":"review","output":"<real deliverable: summary + links/paths>","status_reason":"deliverable ready"}
+JSON
+curl -sS -X PATCH "BASE_URL_VALUE/api/v1/agent/projects/PROJECT_ID_VALUE/tasks/TASK_ID_VALUE" \
+  -H "X-Agent-Token: TOKEN_VALUE" -H "Content-Type: application/json" \
+  --data @/tmp/review.json -w '\nHTTP %{http_code}\n'
+```
+
+Add a task comment:
+
+```bash
+cat > /tmp/comment.json <<'JSON'
+{"message":"**Update**\n- ...\n\n**Evidence**\n- ...\n\n**Next**\n- ..."}
+JSON
+curl -sS -X POST "BASE_URL_VALUE/api/v1/agent/projects/PROJECT_ID_VALUE/tasks/TASK_ID_VALUE/comments" \
+  -H "X-Agent-Token: TOKEN_VALUE" -H "Content-Type: application/json" \
+  --data @/tmp/comment.json -w '\nHTTP %{http_code}\n'
+```
+
+Reply to project BOARD CHAT (Mission Control board chat — NOT WeChat/Slack/SMS or your
+OpenClaw chat; reply only through this API):
 
 ```bash
 cat > /tmp/reply.json <<'JSON'
-{"content":"Got it — I'll start on the API changes. @lead anything else?","tags":["chat"]}
+{"content":"Got it — starting now. @lead anything else?","tags":["chat"]}
 JSON
-curl -fsS -X POST "$BASE_URL/api/v1/agent/projects/$PROJECT_ID/memory" \
-  -H "X-Agent-Token: $AUTH_TOKEN" -H "Content-Type: application/json" \
-  --data @/tmp/reply.json
+curl -sS -X POST "BASE_URL_VALUE/api/v1/agent/projects/PROJECT_ID_VALUE/memory" \
+  -H "X-Agent-Token: TOKEN_VALUE" -H "Content-Type: application/json" \
+  --data @/tmp/reply.json -w '\nHTTP %{http_code}\n'
 ```
 
-- Put `@name` inside `content` to mention a teammate.
-- Read recent board chat: `GET .../projects/$PROJECT_ID/memory?is_chat=true`.
+Put `@name` inside `content` to mention a teammate. Keep `tags` as `["chat"]` so it lands
+in board chat. Omit the `chat` tag for durable non-chat memory.
+{% endif %}
 
-### Write a project memory entry (durable, non-chat)
+{% if is_lead %}
+## Creating tasks (lead)
 
-Use this for decisions/facts that should persist outside the chat thread (omit the
-`chat` tag):
+Keep the payload minimal. A valid task needs only `title`, `description`, `status`, and
+`priority` (`"low"|"medium"|"high"`):
 
 ```bash
-curl -fsS -X POST "$BASE_URL/api/v1/agent/projects/$PROJECT_ID/memory" \
-  -H "X-Agent-Token: $AUTH_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"content":"decision: ...","tags":["decision"]}'
+cat > /tmp/task.json <<'JSON'
+{"title":"Requirements analysis","description":"Define functional requirements and acceptance criteria.","status":"inbox","priority":"high"}
+JSON
+curl -sS -X POST "BASE_URL_VALUE/api/v1/agent/projects/PROJECT_ID_VALUE/tasks" \
+  -H "X-Agent-Token: TOKEN_VALUE" -H "Content-Type: application/json" \
+  --data @/tmp/task.json -w '\nHTTP %{http_code}\n'
 ```
+
+Do NOT invent `tag_ids` or `custom_field_values`:
+
+- `tag_ids` must be **UUIDs of tags that already exist** — never a label like `"ba"`. List
+  tags first (see `references/api_schema.md`) and use their UUIDs, or omit `tag_ids`.
+- `custom_field_values` keys must be **custom fields already defined and bound to this
+  project** — an undefined key like `"role"` returns `422 unknown_field_keys`. Omit
+  `custom_field_values` unless you know the project's defined field keys.
+
+To assign the task, set `assigned_agent_id` to a real agent UUID. To convey role/priority
+context when no custom field exists, put it in the `description` instead of inventing fields.
 {% endif %}
 
 ## Task workflow & system rules
 
 Tasks move through exactly four statuses: **`inbox` → `in_progress` → `review` → `done`**.
 
-1. **Always check `status` first.** Before doing any work on a task, read its current
-   `status`. If it is `inbox` and you are going to work on it, PATCH `status=in_progress`
-   FIRST (with a short `status_reason`). Never work on a task that is still `inbox` — the
-   board must reflect reality.
-2. **`output` is mandatory for `review` and `done`.** The `output` field is the ONLY
-   deliverable a human can read in Mission Control. Files you create on local disk are
-   temporary and invisible to the user. A PATCH to `review` or `done` with an empty
-   `output` is rejected with **409 `task_output_required`**. Put the real result
-   (summary + links/paths/values) in `output`, not "done, see local file".
-3. **`status_reason`** — include a short reason whenever you change `status` so the
-   timeline is readable.
-4. **`review` means "waiting for the lead".** When you move a task to `review` it is no
-   longer assigned to you; the lead reviews it and either moves it to `done` or sends it
-   back. Do not mark your own task `done` unless you are the lead and all gates pass.
-5. **Gates before `done`** (any may be enabled per project): a linked approval must be
-   approved (`require_approval_for_done`); the task must come from `review`
-   (`require_review_before_done`); all blocking dependency tasks must be `done`; required
-   custom fields filled. Violations return **409**.
-6. **Who can change status:** if `only_lead_can_change_status` is on, workers cannot move
-   tasks — ask the lead. A worker may only edit `status`, `output`, `comment`, and custom
-   fields (not title/description/priority/assignee).
-7. **Post progress as task comments**, not chat. Keep them high-signal (artifact /
-   decision / blocker / handoff).
+1. **Claim before working.** If a task is `inbox` and you are about to work it, PATCH
+   `status=in_progress` (with a short `status_reason`) FIRST.
+2. **`output` is mandatory for `review` and `done`.** It is the ONLY deliverable a human
+   reads in Mission Control. Local files are temporary and invisible. A PATCH to `review`
+   or `done` with empty `output` is rejected with **409 `task_output_required`**.
+3. **`review` means "waiting for the lead".** Do not mark your own task `done` unless you
+   are the lead and all gates pass.
+4. **Gates before `done`:** linked approval approved, came from `review`, blocking
+   dependencies done, required custom fields filled — any violation returns **409**.
+5. **Progress goes in task comments**, not chat. High-signal only.
 
-## Error handling
+## When stuck
 
-- `401` → token is stale; **re-read** `mission_control_credential.json` and retry once. Do not reuse the old shell variable.
-- `403` → you are authenticated but not authorized; ask the lead/user for permission. Never try to widen scope.
-- `409` → a rule blocked the change. Common cause: moving to `review`/`done` with an empty
-  `output` (`task_output_required`) — fill `output` and retry. Other 409s: pending/approved
-  approval required, blocked by dependencies, or review-before-done. Read the `detail.message`.
-- `422` → payload schema mismatch; open `/tmp/openapi.json` and inspect `components.schemas.<Name>` for the request body. Fix and retry.
-- `5xx`/network → do **not** write memory or task updates this cycle. Retry next heartbeat.
-
-## When you are stuck
-
-Ask one clarifying question instead of guessing field names or paths. If you need an endpoint that is not in `references/api_schema.md` or the OpenAPI doc filtered to `{{ role_tag }}`, that endpoint is **not** for your role.
+Ask one clarifying question instead of guessing field names or paths. If an endpoint is
+not in `references/api_schema.md` or the OpenAPI doc filtered to `{{ role_tag }}`, it is
+not for your role.

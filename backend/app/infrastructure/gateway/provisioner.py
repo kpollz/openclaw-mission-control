@@ -1187,9 +1187,10 @@ def _credential_write_instruction(*, credential_path: str, credential_json: str)
         "```json\n"
         f"{credential_json}\n"
         "```\n\n"
-        "Then load the token (use this in every shell; never paste the literal):\n"
-        f"   AUTH_TOKEN=$(jq -r .auth_token {credential_path})\n"
-        "Never paste the token literal into commands, logs, chat, or memory."
+        "This file is your only token source. To call the API, follow "
+        "`skills/mission-control/SKILL.md`: read this file, then run curl with the "
+        "base_url and auth_token written straight into the command. Never copy the token "
+        "into task comments, memory, or chat."
     )
 
 
@@ -1198,35 +1199,70 @@ def _agent_setup_instruction(
     credential_path: str,
     credential_json: str,
     base_url: str | None = None,
+    is_lead: bool = False,
+    project_id: str | None = None,
+    agent_name: str | None = None,
 ) -> str:
     """Full first-wake setup: persist credentials, fetch the skill, THEN go online.
 
     Ordering matters — the agent must finish credential + skill setup before sending
     the heartbeat that marks it online, so it is never online without a usable token
-    and API guidance.
+    and API guidance. For a project lead, the final step announces readiness on the
+    project Board Chat so the human sees the lead come online inside Mission Control
+    instead of only in the silent OpenClaw session.
     """
     api = (base_url or settings.base_url).rstrip("/")
-    return (
+    steps = (
         "SETUP — do these steps IN ORDER and finish ALL of them BEFORE sending any "
-        "heartbeat or marking yourself online:\n\n"
+        "heartbeat or marking yourself online.\n\n"
         f"1) Persist credentials. Write this EXACT content to `{credential_path}` "
         "(overwrite if it exists):\n\n"
         "```json\n"
         f"{credential_json}\n"
         "```\n\n"
-        "2) Load the token (use this in every shell; never paste the literal):\n"
-        f"   AUTH_TOKEN=$(jq -r .auth_token {credential_path})\n\n"
-        "3) Fetch the mission-control skill into your workspace:\n"
+        "2) Read that file to get your `base_url` and `auth_token`:\n"
+        f"   cat {credential_path}\n\n"
+        "3) Fetch the mission-control skill. Write the base_url and auth_token you just read "
+        "STRAIGHT INTO the commands below (no shell variables, no `$(...)`, no jq inside the "
+        "command — that is what causes `Syntax error: \")\" unexpected`):\n"
         "   mkdir -p skills/mission-control/references\n"
-        f'   curl -fsS "{api}/api/v1/agent/skills/mission-control/SKILL.md" '
-        '-H "X-Agent-Token: $AUTH_TOKEN" -o skills/mission-control/SKILL.md\n'
-        f'   curl -fsS "{api}/api/v1/agent/skills/mission-control/references/api_schema.md" '
-        '-H "X-Agent-Token: $AUTH_TOKEN" -o skills/mission-control/references/api_schema.md\n'
-        "   Then read `skills/mission-control/SKILL.md` for how to call the API safely.\n\n"
-        "4) ONLY AFTER steps 1-3 succeed, check in to mark yourself online:\n"
-        f'   curl -fsS -X POST "{api}/api/v1/agent/heartbeat" -H "X-Agent-Token: $AUTH_TOKEN"\n\n'
-        "Never paste the token literal into commands, logs, chat, or memory."
+        f'   curl -sS "{api}/api/v1/agent/skills/mission-control/SKILL.md" '
+        '-H "X-Agent-Token: PASTE_TOKEN_HERE" -o skills/mission-control/SKILL.md\n'
+        f'   curl -sS "{api}/api/v1/agent/skills/mission-control/references/api_schema.md" '
+        '-H "X-Agent-Token: PASTE_TOKEN_HERE" -o skills/mission-control/references/api_schema.md\n'
+        "   Then read `skills/mission-control/SKILL.md` — it is the single source of truth "
+        "for every API call from now on.\n\n"
+        "4) ONLY AFTER steps 1-3 succeed, check in to mark yourself online (token pasted in, "
+        "no variables):\n"
+        f'   curl -sS -X POST "{api}/api/v1/agent/heartbeat" -H "X-Agent-Token: PASTE_TOKEN_HERE" '
+        "-w '\\nHTTP %{http_code}\\n'\n\n"
     )
+    if is_lead and project_id:
+        who = agent_name or "the project lead"
+        steps += (
+            "5) You are this project's LEAD. Introduce yourself to the human on the project "
+            "BOARD CHAT so they can see you are ready. IMPORTANT: the human reads Board Chat "
+            "inside Mission Control — they do NOT see your OpenClaw session, so never rely on "
+            "OpenClaw chat to reach them. Post a short, friendly intro saying you are online, "
+            "what you will do next, and that they can talk to you here. Use the temp-file "
+            "pattern (a JSON body inline with -d breaks on apostrophes):\n"
+            "   cat > /tmp/intro.json <<'JSON'\n"
+            f'   {{"content":"Hi, I am {who} for this project and I am set up and online. '
+            "I will start turning the goal into tasks and assigning work. You can talk to me "
+            "right here on the Board Chat anytime — ask for status, give direction, or "
+            '@mention me.","tags":["chat"]}}\n'
+            "   JSON\n"
+            f'   curl -sS -X POST "{api}/api/v1/agent/projects/{project_id}/memory" '
+            '-H "X-Agent-Token: PASTE_TOKEN_HERE" -H "Content-Type: application/json" '
+            "--data @/tmp/intro.json -w '\\nHTTP %{http_code}\\n'\n"
+            "   Keep `tags` as [\"chat\"] so it lands in Board Chat. From now on, use Board "
+            "Chat (not OpenClaw chat) for everything the human should see.\n\n"
+        )
+    steps += (
+        "The token may appear in these curl commands, but never copy it into task comments, "
+        "memory, chat, or logs you write."
+    )
+    return steps
 
 
 def _wakeup_text(
@@ -1235,6 +1271,7 @@ def _wakeup_text(
     verb: str,
     credential_path: str | None = None,
     credential_json: str | None = None,
+    project_id: str | None = None,
 ) -> str:
     base = (
         f"Hello {agent.name}. Your workspace has been {verb}.\n\n"
@@ -1244,6 +1281,9 @@ def _wakeup_text(
         setup = _agent_setup_instruction(
             credential_path=credential_path,
             credential_json=credential_json,
+            is_lead=agent.is_project_lead,
+            project_id=project_id,
+            agent_name=agent.name,
         )
         return f"{base}\n\n{setup}"
     return base
@@ -1371,6 +1411,7 @@ class OpenClawGatewayProvisioner:
                 verb=verb,
                 credential_path=credential_path,
                 credential_json=credential_json,
+                project_id=str(project.id) if project is not None else None,
             ),
             session_key=session_key,
             config=client_config,

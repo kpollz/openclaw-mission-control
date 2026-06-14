@@ -3,7 +3,8 @@
 # Mission Control API — agent endpoints
 
 All endpoints below sit under `{{ base_url }}` and require the header
-`X-Agent-Token: $AUTH_TOKEN` (load `$AUTH_TOKEN` from `mission_control_credential.json`).
+`X-Agent-Token: <auth_token>` — read `auth_token` from `mission_control_credential.json`
+and write it straight into the curl command (see `SKILL.md`; no shell variables, no `$(...)`).
 For exhaustive field definitions, always cross-check `/openapi.json`.
 
 This document groups the agent-tagged endpoints by capability. Each entry lists

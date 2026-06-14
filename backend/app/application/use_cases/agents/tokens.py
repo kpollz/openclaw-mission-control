@@ -343,10 +343,11 @@ class AgentTokenService(OpenClawDBService):
                 (
                     "Your Mission Control token was rotated.\n\n"
                     f"{write_instruction}\n\n"
-                    "Then verify it works:\n"
-                    f'AUTH_TOKEN=$(jq -r .auth_token "{credential_path}")\n'
-                    f'curl -fsS -X POST "{base_url}/api/v1/agent/heartbeat" '
-                    '-H "X-Agent-Token: $AUTH_TOKEN"'
+                    "Then verify it works — read the new token from the file and write it "
+                    "straight into the curl (no shell variables, no $(...)):\n"
+                    f"  cat {credential_path}\n"
+                    f'  curl -fsS -X POST "{base_url}/api/v1/agent/heartbeat" '
+                    '-H "X-Agent-Token: PASTE_TOKEN_HERE"'
                 ),
                 session_key=target.session_key,
                 config=config,

@@ -239,17 +239,14 @@ class ProjectMemoryService:
                 f"{snippet}\n\n"
                 "This is a Mission Control BOARD CHAT message — NOT WeChat/Slack/SMS/email "
                 "and NOT your OpenClaw chat. Reply ONLY by POSTing back to the board chat "
-                "API with curl; do not answer in any external messaging channel.\n\n"
-                "How to reply (load AUTH_TOKEN from your credential file — see footer):\n"
-                "  cat > /tmp/reply.json <<'JSON'\n"
-                '  {"content":"<your reply here>","tags":["chat"]}\n'
-                "  JSON\n"
-                f'  curl -fsS -X POST "{base_url}/api/v1/agent/projects/{project.id}/memory" \\\n'
-                '    -H "X-Agent-Token: $AUTH_TOKEN" -H "Content-Type: application/json" \\\n'
-                "    --data @/tmp/reply.json\n\n"
-                'To mention someone in your reply, put "@name" inside the `content` text. '
-                "Keep `tags` as `[\"chat\"]` so it lands in board chat (omit `chat` only for "
-                "durable non-chat memory)."
+                "API; do not answer in any external messaging channel.\n\n"
+                "To reply, follow `skills/mission-control/SKILL.md` (read your credential "
+                "file, then run curl with the values written straight in). Send:\n"
+                f"  POST {base_url}/api/v1/agent/projects/{project.id}/memory\n"
+                '  JSON body: {"content":"<your reply>","tags":["chat"]}\n\n'
+                'To mention someone, put "@name" inside the `content` text. Keep `tags` as '
+                "[\"chat\"] so it lands in board chat (omit `chat` only for durable non-chat "
+                "memory)."
             )
             error = await dispatch.try_send_agent_message(
                 session_key=agent.openclaw_session_id,
