@@ -3,7 +3,6 @@
 # TOOLS.md
 
 - `BASE_URL={{ base_url }}`
-- `AUTH_TOKEN={{ auth_token }}`
 - `AGENT_NAME={{ agent_name }}`
 - `AGENT_ID={{ agent_id }}`
 {% if project_id is defined %}
@@ -23,6 +22,54 @@
 {% set role_tag = "agent-worker" %}
 {% endif %}
 
+## Credentials (IMPORTANT)
+
+Your auth token, agent id, and project id live in this exact file:
+
+```
+{{ credential_path }}
+```
+
+It is a JSON file you wrote during startup (from the provisioning message). **Never**
+hardcode the token, copy it into env vars in chat/logs, or parse it out of any markdown
+file with `sed`/backticks. Always read it from the JSON with `jq`.
+
+Load the credential in every shell session before calling the API:
+
+```bash
+CRED="{{ credential_path }}"
+BASE_URL=$(jq -r .base_url "$CRED")
+AUTH_TOKEN=$(jq -r .auth_token "$CRED")
+AGENT_ID=$(jq -r .agent_id "$CRED")
+{% if project_id is defined %}PROJECT_ID=$(jq -r .project_id "$CRED")
+{% endif %}```
+
+If `jq` is unavailable, fall back to Python:
+
+```bash
+AUTH_TOKEN=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["auth_token"])' "{{ credential_path }}")
+```
+
+If `{{ credential_path }}` is missing, re-read the latest Mission Control provisioning
+message — it contains the exact JSON to write back to that path.
+
+## Mission Control skill (fetch once)
+
+Deeper API guidance lives in a skill you fetch from Mission Control into your workspace:
+
+```bash
+CRED="{{ credential_path }}"
+BASE_URL=$(jq -r .base_url "$CRED")
+AUTH_TOKEN=$(jq -r .auth_token "$CRED")
+mkdir -p skills/mission-control/references
+curl -fsS "$BASE_URL/api/v1/agent/skills/mission-control/SKILL.md" \
+  -H "X-Agent-Token: $AUTH_TOKEN" -o skills/mission-control/SKILL.md
+curl -fsS "$BASE_URL/api/v1/agent/skills/mission-control/references/api_schema.md" \
+  -H "X-Agent-Token: $AUTH_TOKEN" -o skills/mission-control/references/api_schema.md
+```
+
+Then read `skills/mission-control/SKILL.md` for the safe command pattern and endpoint list.
+
 ## OpenAPI refresh (run before API-heavy work)
 
 ```bash
@@ -37,6 +84,9 @@ jq -r '
 ```
 
 ## API source of truth
+- `{{ credential_path }}` — auth token + IDs
+- `skills/mission-control/SKILL.md` — how to call the API safely (fetch, see above)
+- `skills/mission-control/references/api_schema.md` — endpoint catalogue
 - `api/openapi.json`
 - `api/{{ role_tag }}-operations.tsv`
   - Columns: METHOD, PATH, OP_ID, X_LLM_INTENT, X_WHEN_TO_USE, X_ROUTING_POLICY
@@ -45,14 +95,13 @@ jq -r '
 Run this before any Mission Control API call in a shell:
 
 ```bash
-export BASE_URL="{{ base_url }}"
-export AUTH_TOKEN="{{ auth_token }}"
-export AGENT_ID="{{ agent_id }}"
-export AGENT_NAME="{{ agent_name }}"
-{% if project_id is defined %}
-export PROJECT_ID="{{ project_id }}"
-{% endif %}
-```
+CRED="{{ credential_path }}"
+BASE_URL=$(jq -r .base_url "$CRED")
+AUTH_TOKEN=$(jq -r .auth_token "$CRED")
+AGENT_ID=$(jq -r .agent_id "$CRED")
+AGENT_NAME=$(jq -r .agent_name "$CRED")
+{% if project_id is defined %}PROJECT_ID=$(jq -r .project_id "$CRED")
+{% endif %}```
 
 Use `curl -fsS` so failed requests stop instead of looking successful.
 Always include `-H "X-Agent-Token: $AUTH_TOKEN"`.
@@ -63,7 +112,7 @@ For JSON writes, always include `-H "Content-Type: application/json"`.
 - First prefer the known-good commands below.
 - For anything else, inspect `api/openapi.json` and choose an operation tagged `{{ role_tag }}`.
 - Use `PROJECT_ID` as the Mission Control project id for project-scoped agent routes.
-- If a command returns 401, stop using the token in memory and re-read `TOOLS.md`; do not retry with old tokens.
+- If a command returns 401, stop using the token in memory and re-read `{{ credential_path }}`; do not retry with old tokens.
 - If a command returns 403, you are authenticated but not allowed; ask the lead/user for permission or reassignment.
 - If a command returns 422, inspect the response body and OpenAPI schema before retrying.
 - Never put `AUTH_TOKEN` in task comments, memory, chat, logs, or screenshots.

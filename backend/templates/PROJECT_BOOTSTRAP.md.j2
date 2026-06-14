@@ -27,49 +27,77 @@ done
 curl -fsS "{{ base_url }}/healthz" >/dev/null
 ```
 
-3) Ensure required files exist:
-- `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `USER.md`, `TOOLS.md`, `MEMORY.md`, `HEARTBEAT.md`, `BOOTSTRAP.md`
-
-4) Create `memory/` if missing.
-
-5) Ensure today's daily file exists: `memory/YYYY-MM-DD.md`.
-
-{% if is_lead %}
-6) Immediately check in to Mission Control (do this before any task orchestration):
+3) Ensure your credential file exists at `{{ credential_path }}`.
+- The Mission Control provisioning message you received contains the EXACT JSON to write.
+- If the file is missing, write that JSON to `{{ credential_path }}` now (overwrite if present).
+- Confirm it parses and holds a token:
 
 ```bash
-export BASE_URL="{{ base_url }}"
-export AUTH_TOKEN="$(grep -E '^-\s*`AUTH_TOKEN=' TOOLS.md | sed -E 's/^-\s*`AUTH_TOKEN=//; s/`$//')"
+CRED="{{ credential_path }}"
+jq -e .auth_token "$CRED" >/dev/null || echo "Credential file missing/invalid — write it from the provisioning message" >&2
+```
+
+4) Fetch the mission-control skill into your workspace:
+
+```bash
+CRED="{{ credential_path }}"
+BASE_URL=$(jq -r .base_url "$CRED")
+AUTH_TOKEN=$(jq -r .auth_token "$CRED")
+mkdir -p skills/mission-control/references
+curl -fsS "$BASE_URL/api/v1/agent/skills/mission-control/SKILL.md" \
+  -H "X-Agent-Token: $AUTH_TOKEN" -o skills/mission-control/SKILL.md
+curl -fsS "$BASE_URL/api/v1/agent/skills/mission-control/references/api_schema.md" \
+  -H "X-Agent-Token: $AUTH_TOKEN" -o skills/mission-control/references/api_schema.md
+```
+
+5) Ensure required files exist:
+- `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `USER.md`, `TOOLS.md`, `MEMORY.md`, `HEARTBEAT.md`, `BOOTSTRAP.md`
+- `{{ credential_path }}` (auth token + IDs)
+- `skills/mission-control/SKILL.md` (API guidance)
+
+6) Create `memory/` if missing.
+
+7) Ensure today's daily file exists: `memory/YYYY-MM-DD.md`.
+
+{% if is_lead %}
+8) Immediately check in to Mission Control (do this before any task orchestration):
+
+```bash
+CRED="{{ credential_path }}"
+BASE_URL=$(jq -r .base_url "$CRED")
+AUTH_TOKEN=$(jq -r .auth_token "$CRED")
 curl -fsS -X POST "$BASE_URL/api/v1/agent/heartbeat" \
   -H "X-Agent-Token: $AUTH_TOKEN"
 ```
 
-7) Initialize current delivery status in `MEMORY.md`:
+9) Initialize current delivery status in `MEMORY.md`:
 - set objective if missing
 - set state to `Working` (or `Waiting` if external dependency exists)
 - set one concrete next step
 
-8) Add one line to `MEMORY.md` noting bootstrap completion date.
+10) Add one line to `MEMORY.md` noting bootstrap completion date.
 {% else %}
-6) If any fields are blank, leave them blank. Do not invent values.
+8) If any fields are blank, leave them blank. Do not invent values.
 
-7) Use the values from `TOOLS.md` to check in:
+9) Load credentials from `{{ credential_path }}` and check in:
 - `BASE_URL`
 - `AUTH_TOKEN`
 - `PROJECT_ID={{ project_id }}`
 to Mission Control to mark the agent online:
 
 ```bash
-export BASE_URL="{{ base_url }}"
-export AUTH_TOKEN="$(grep -E '^-\s*`AUTH_TOKEN=' TOOLS.md | sed -E 's/^-\s*`AUTH_TOKEN=//; s/`$//')"
+CRED="{{ credential_path }}"
+BASE_URL=$(jq -r .base_url "$CRED")
+AUTH_TOKEN=$(jq -r .auth_token "$CRED")
+PROJECT_ID=$(jq -r .project_id "$CRED")
 curl -fsS -X POST "$BASE_URL/api/v1/agent/heartbeat" \
   -H "X-Agent-Token: $AUTH_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name":"{{ agent_name }}","project_id":"{{ project_id }}","status":"online"}'
+  -d "{\"name\":\"{{ agent_name }}\",\"project_id\":\"$PROJECT_ID\",\"status\":\"online\"}"
 ```
 
-8) Write a short note to `MEMORY.md` that bootstrap completed and list any
+10) Write a short note to `MEMORY.md` that bootstrap completed and list any
 missing fields (e.g., user name, timezone).
 {% endif %}
 
-Final step: Delete this file.
+Final step: Delete this file. (Your credential file and skill stay; only this bootstrap is removed.)

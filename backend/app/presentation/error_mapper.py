@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from app.domain.exceptions import (
     AlreadyExistsError,
     ApprovalRequiredError,
+    ConflictError,
     DependencyCycleError,
     DomainError,
     GatewayUnavailableError,
@@ -26,6 +27,10 @@ _STATUS_MAP: dict[type[DomainError], int] = {
     NotFoundError: 404,
     PermissionDeniedError: 403,
     ValidationError: 400,
+    # ConflictError is the base for the more specific 409s below; keeping it
+    # mapped ensures a plain ConflictError (e.g. review-before-done, pending
+    # approval) returns 409 instead of falling through to 500.
+    ConflictError: 409,
     TaskBlockedError: 409,
     DependencyCycleError: 409,
     ApprovalRequiredError: 409,

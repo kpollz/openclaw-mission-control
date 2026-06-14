@@ -36,6 +36,7 @@ from app.infrastructure.gateway.constants import (
     LEAD_GATEWAY_FILES,
     LEAD_TEMPLATE_MAP,
     MAIN_TEMPLATE_MAP,
+    MISSION_CONTROL_CREDENTIAL_FILE,
     PRESERVE_AGENT_EDITABLE_FILES,
 )
 from app.infrastructure.gateway.rpc_client import GatewayConfig as GatewayClientConfig
@@ -212,6 +213,73 @@ def _workspace_path(agent: Agent, workspace_root: str) -> str:
         key = key.removeprefix("mc-")
 
     return f"{root}/workspace-{slugify(key)}"
+
+
+def _credential_path(workspace_path: str) -> str:
+    """Absolute path to the agent-owned credential file inside its workspace."""
+    return f"{workspace_path.rstrip('/')}/{MISSION_CONTROL_CREDENTIAL_FILE}"
+
+
+# Skill documents are served over HTTP (see the agent API) and fetched by the agent
+# into its own workspace, because the gateway file API cannot accept nested paths.
+MISSION_CONTROL_SKILL_TEMPLATES: dict[str, str] = {
+    "SKILL.md": "skills/mission-control/SKILL.md.j2",
+    "references/api_schema.md": "skills/mission-control/references/api_schema.md.j2",
+}
+
+
+def render_mission_control_skill_document(
+    relative_name: str,
+    *,
+    is_main: bool,
+    is_lead: bool,
+    project_id: str | None,
+    base_url: str | None = None,
+) -> str:
+    """Render a mission-control skill document for a given agent role.
+
+    `relative_name` is one of the keys in ``MISSION_CONTROL_SKILL_TEMPLATES``
+    (e.g. ``"SKILL.md"``). Raises ``KeyError`` for unknown names.
+    """
+    template_name = MISSION_CONTROL_SKILL_TEMPLATES[relative_name]
+    env = _template_env()
+    context: dict[str, str] = {
+        "is_main_agent": "true" if is_main else "false",
+        "is_project_lead": "true" if is_lead else "false",
+        "base_url": base_url or settings.base_url,
+    }
+    if project_id is not None:
+        context["project_id"] = project_id
+    return env.get_template(template_name).render(**context).strip() + "\n"
+
+
+def _credential_json(
+    *,
+    base_url: str,
+    auth_token: str,
+    agent_id: str,
+    agent_name: str,
+    role: str,
+    project_id: str | None,
+    workspace_path: str,
+) -> str:
+    """Render the exact JSON the agent must persist to its credential file.
+
+    This is the single source of truth for the token shape. It is delivered to the
+    agent through the provision/wakeup message (not pushed as a file, since the
+    gateway file API allowlists only the markdown workspace files)."""
+    payload: dict[str, str] = {
+        "base_url": base_url,
+        "auth_token": auth_token,
+        "auth_header": "X-Agent-Token",
+        "agent_id": agent_id,
+        "agent_name": agent_name,
+        "role": role,
+    }
+    if project_id is not None:
+        payload["project_id"] = project_id
+    payload["workspace_path"] = workspace_path
+    return json.dumps(payload, indent=2, ensure_ascii=False)
 
 
 def _email_local_part(email: str) -> str:
@@ -400,6 +468,7 @@ def _build_context(
         "is_main_agent": "false",
         "session_key": session_key,
         "workspace_path": workspace_path,
+        "credential_path": _credential_path(workspace_path),
         "base_url": base_url,
         "auth_token": auth_token,
         "main_session_key": main_session_key,
@@ -418,15 +487,19 @@ def _build_main_context(
     base_url = settings.base_url
     identity_context = _identity_context(agent)
     user_context = _user_context(user)
+    workspace_root = gateway.workspace_root or ""
+    workspace_path = _workspace_path(agent, workspace_root) if workspace_root else ""
     return {
         "agent_name": agent.name,
         "agent_id": str(agent.id),
         "is_main_agent": "true",
         "session_key": agent.openclaw_session_id or "",
+        "workspace_path": workspace_path,
+        "credential_path": _credential_path(workspace_path) if workspace_path else "",
         "base_url": base_url,
         "auth_token": auth_token,
         "main_session_key": GatewayAgentIdentity.session_key(gateway),
-        "workspace_root": gateway.workspace_root or "",
+        "workspace_root": workspace_root,
         **user_context,
         **identity_context,
     }
@@ -1101,12 +1174,79 @@ def _should_include_bootstrap(
     return not bool(entry and entry.get("missing"))
 
 
-def _wakeup_text(agent: Agent, *, verb: str) -> str:
+def _credential_write_instruction(*, credential_path: str, credential_json: str) -> str:
+    """Minimal instruction: persist the credential file and load the token from it.
+
+    The token is delivered here (not as a pushed file). The agent writes the exact
+    JSON to `credential_path`; every later shell reads the token with `jq` from that
+    file. Regenerated on each provision so token rotation is picked up automatically.
+    Used on its own for token rotation (credential refresh without full re-setup).
+    """
     return (
-        f"Hello {agent.name}. Your workspace has been {verb}.\n\n"
-        "Start the agent. If BOOTSTRAP.md exists, read it first, then read AGENTS.md. "
-        "Begin heartbeats after startup."
+        f"Write this EXACT content to `{credential_path}` (overwrite if it exists):\n\n"
+        "```json\n"
+        f"{credential_json}\n"
+        "```\n\n"
+        "Then load the token (use this in every shell; never paste the literal):\n"
+        f"   AUTH_TOKEN=$(jq -r .auth_token {credential_path})\n"
+        "Never paste the token literal into commands, logs, chat, or memory."
     )
+
+
+def _agent_setup_instruction(
+    *,
+    credential_path: str,
+    credential_json: str,
+    base_url: str | None = None,
+) -> str:
+    """Full first-wake setup: persist credentials, fetch the skill, THEN go online.
+
+    Ordering matters — the agent must finish credential + skill setup before sending
+    the heartbeat that marks it online, so it is never online without a usable token
+    and API guidance.
+    """
+    api = (base_url or settings.base_url).rstrip("/")
+    return (
+        "SETUP — do these steps IN ORDER and finish ALL of them BEFORE sending any "
+        "heartbeat or marking yourself online:\n\n"
+        f"1) Persist credentials. Write this EXACT content to `{credential_path}` "
+        "(overwrite if it exists):\n\n"
+        "```json\n"
+        f"{credential_json}\n"
+        "```\n\n"
+        "2) Load the token (use this in every shell; never paste the literal):\n"
+        f"   AUTH_TOKEN=$(jq -r .auth_token {credential_path})\n\n"
+        "3) Fetch the mission-control skill into your workspace:\n"
+        "   mkdir -p skills/mission-control/references\n"
+        f'   curl -fsS "{api}/api/v1/agent/skills/mission-control/SKILL.md" '
+        '-H "X-Agent-Token: $AUTH_TOKEN" -o skills/mission-control/SKILL.md\n'
+        f'   curl -fsS "{api}/api/v1/agent/skills/mission-control/references/api_schema.md" '
+        '-H "X-Agent-Token: $AUTH_TOKEN" -o skills/mission-control/references/api_schema.md\n'
+        "   Then read `skills/mission-control/SKILL.md` for how to call the API safely.\n\n"
+        "4) ONLY AFTER steps 1-3 succeed, check in to mark yourself online:\n"
+        f'   curl -fsS -X POST "{api}/api/v1/agent/heartbeat" -H "X-Agent-Token: $AUTH_TOKEN"\n\n'
+        "Never paste the token literal into commands, logs, chat, or memory."
+    )
+
+
+def _wakeup_text(
+    agent: Agent,
+    *,
+    verb: str,
+    credential_path: str | None = None,
+    credential_json: str | None = None,
+) -> str:
+    base = (
+        f"Hello {agent.name}. Your workspace has been {verb}.\n\n"
+        "Start the agent. If BOOTSTRAP.md exists, read it first, then read AGENTS.md."
+    )
+    if credential_path and credential_json:
+        setup = _agent_setup_instruction(
+            credential_path=credential_path,
+            credential_json=credential_json,
+        )
+        return f"{base}\n\n{setup}"
+    return base
 
 
 class OpenClawGatewayProvisioner:
@@ -1207,8 +1347,31 @@ class OpenClawGatewayProvisioner:
         )
         await ensure_session(session_key, config=client_config, label=agent.name)
         verb = wakeup_verb or ("provisioned" if action == "provision" else "updated")
+
+        workspace_path = _workspace_path(agent, gateway.workspace_root)
+        if agent.project_id is None:
+            role = "main"
+        elif agent.is_project_lead:
+            role = "lead"
+        else:
+            role = "worker"
+        credential_path = _credential_path(workspace_path)
+        credential_json = _credential_json(
+            base_url=settings.base_url,
+            auth_token=auth_token,
+            agent_id=str(agent.id),
+            agent_name=agent.name,
+            role=role,
+            project_id=str(project.id) if project is not None else None,
+            workspace_path=workspace_path,
+        )
         await send_message(
-            _wakeup_text(agent, verb=verb),
+            _wakeup_text(
+                agent,
+                verb=verb,
+                credential_path=credential_path,
+                credential_json=credential_json,
+            ),
             session_key=session_key,
             config=client_config,
             deliver=deliver_wakeup,

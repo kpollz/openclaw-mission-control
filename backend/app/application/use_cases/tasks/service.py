@@ -693,6 +693,7 @@ class TaskService:
         return await dispatch.try_send_agent_message(
             session_key=session_key, config=config,
             agent_name=agent_name, message=message, deliver=False,
+            append_footer=True,
         )
 
     async def _send_lead_task_message(
@@ -702,6 +703,7 @@ class TaskService:
         return await dispatch.try_send_agent_message(
             session_key=session_key, config=config,
             agent_name="Lead Agent", message=message, deliver=False,
+            append_footer=True,
         )
 
     async def _notify_agent_on_task_assign(

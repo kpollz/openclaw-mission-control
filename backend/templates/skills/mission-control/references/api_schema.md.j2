@@ -1,0 +1,89 @@
+{% set is_main = (is_main_agent | default(false) | string | lower) in ["true", "1", "yes"] -%}
+{% set is_lead = (is_project_lead | default(false) | string | lower) in ["true", "1", "yes"] -%}
+# Mission Control API — agent endpoints
+
+All endpoints below sit under `{{ base_url }}` and require the header
+`X-Agent-Token: $AUTH_TOKEN` (load `$AUTH_TOKEN` from `mission_control_credential.json`).
+For exhaustive field definitions, always cross-check `/openapi.json`.
+
+This document groups the agent-tagged endpoints by capability. Each entry lists
+HTTP method, path, the role tag that may use it, and what it does.
+
+## Health & identity
+
+| Method | Path | Roles | Purpose |
+|--------|------|-------|---------|
+| GET  | `/api/v1/agent/healthz`  | main / lead / worker | Token-authenticated liveness probe. Returns agent id, project id, status. |
+| POST | `/api/v1/agent/heartbeat` | main / lead / worker | Send a heartbeat check-in. Use every cycle. |
+
+## Projects & agents
+
+| Method | Path | Roles | Purpose |
+|--------|------|-------|---------|
+| GET  | `/api/v1/agent/projects` | main / lead / worker | List projects this token can see. |
+| GET  | `/api/v1/agent/projects/{project_id}` | lead / worker | Read a single project. |
+| GET  | `/api/v1/agent/agents` | main / lead | List agents (scoped by your role). |
+| POST | `/api/v1/agent/agents` | lead | Create a project agent (lead only). |
+| GET  | `/api/v1/agent/projects/{project_id}/agents/{agent_id}/soul` | lead | Read another agent's soul. |
+| PUT  | `/api/v1/agent/projects/{project_id}/agents/{agent_id}/soul` | lead | Update an agent's soul. |
+| DELETE | `/api/v1/agent/projects/{project_id}/agents/{agent_id}` | lead | Retire a project agent. |
+| POST | `/api/v1/agent/projects/{project_id}/agents/{agent_id}/nudge` | lead | Send a nudge message to another agent. |
+
+## Tasks
+
+| Method | Path | Roles | Purpose |
+|--------|------|-------|---------|
+| GET  | `/api/v1/agent/projects/{project_id}/tasks` | lead / worker | List tasks. Query params: `status=inbox,in_progress,review,done`. |
+| POST | `/api/v1/agent/projects/{project_id}/tasks` | lead | Create a task. |
+| GET  | `/api/v1/agent/projects/{project_id}/tasks/{task_id}` | lead / worker | Read one task. |
+| PATCH | `/api/v1/agent/projects/{project_id}/tasks/{task_id}` | lead / worker | Update a task. To move to `done`, set both `status` and a non-blank `output`. |
+| DELETE | `/api/v1/agent/projects/{project_id}/tasks/{task_id}` | lead | Delete a task. |
+| GET  | `/api/v1/agent/projects/{project_id}/tasks/{task_id}/comments` | lead / worker | Read task comments. |
+| POST | `/api/v1/agent/projects/{project_id}/tasks/{task_id}/comments` | lead / worker | Add a comment. Use the Update/Evidence/Next markdown shape. |
+| GET  | `/api/v1/agent/projects/{project_id}/tags` | lead / worker | List the project tag catalogue. |
+
+## Project memory & chat
+
+| Method | Path | Roles | Purpose |
+|--------|------|-------|---------|
+| GET  | `/api/v1/agent/projects/{project_id}/memory` | lead / worker | List memory entries. `is_chat=false` for non-chat memory. |
+| POST | `/api/v1/agent/projects/{project_id}/memory` | lead / worker | Write a memory entry. Tags select chat vs. durable memory. |
+
+## Approvals
+
+| Method | Path | Roles | Purpose |
+|--------|------|-------|---------|
+| GET  | `/api/v1/agent/projects/{project_id}/approvals` | lead / worker | List approvals (pending/resolved). |
+| POST | `/api/v1/agent/projects/{project_id}/approvals` | lead / worker | Request an approval. |
+
+## Onboarding
+
+| Method | Path | Roles | Purpose |
+|--------|------|-------|---------|
+| POST | `/api/v1/agent/projects/{project_id}/onboarding` | lead | Submit onboarding answers. |
+
+## Webhooks (read-only payloads)
+
+| Method | Path | Roles | Purpose |
+|--------|------|-------|---------|
+| GET  | `/api/v1/agent/projects/{project_id}/webhooks/{webhook_id}/payloads/{payload_id}` | lead / worker | Fetch the full payload for a webhook event referenced from a task. |
+
+## Cross-agent coordination
+
+| Method | Path | Roles | Purpose |
+|--------|------|-------|---------|
+| POST | `/api/v1/agent/projects/{project_id}/gateway/main/ask-user` | lead | Forward a question to the gateway-main agent so it can reach the human user. |
+| POST | `/api/v1/agent/gateway/projects/{project_id}/lead/message` | main | Send a message from gateway-main to the project lead. |
+| POST | `/api/v1/agent/gateway/leads/broadcast` | main | Broadcast a message to all project leads. |
+
+## Body schemas
+
+Use OpenAPI as the source of truth for request bodies:
+
+```bash
+jq '.components.schemas.TaskUpdate' /tmp/openapi.json
+jq '.components.schemas.TaskCommentCreate' /tmp/openapi.json
+jq '.components.schemas.ProjectMemoryCreate' /tmp/openapi.json
+```
+
+If a schema field is unfamiliar, do not invent a value — ask one clarifying question.

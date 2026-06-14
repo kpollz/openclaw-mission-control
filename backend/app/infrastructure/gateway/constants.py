@@ -56,6 +56,13 @@ EXTRA_IDENTITY_PROFILE_FIELDS = {
     "custom_instructions": "identity_custom_instructions",
 }
 
+# The agent writes this file itself into its workspace (we cannot push it via the
+# gateway file API — the gateway allowlists only the markdown workspace files below).
+# The token is delivered to the agent through the provision/wakeup message; the agent
+# persists it here so every subsequent shell reads it with `jq` instead of parsing
+# markdown. See `mission_control_credential_filename()` for the canonical name.
+MISSION_CONTROL_CREDENTIAL_FILE = "mission_control_credential.json"
+
 DEFAULT_GATEWAY_FILES = frozenset(
     {
         "AGENTS.md",

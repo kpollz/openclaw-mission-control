@@ -8,9 +8,12 @@ This file defines the main agent heartbeat. You are not tied to any project.
 
 ## Required inputs
 - BASE_URL: `{{ base_url }}`
-- AUTH_TOKEN: `{{ auth_token }}`
+- AUTH_TOKEN: load from `{{ credential_path }}` (do NOT inline)
 - AGENT_NAME
 - AGENT_ID
+
+Read `{{ credential_path }}` at the start of every heartbeat cycle.
+For API guidance, read `skills/mission-control/SKILL.md` (fetch it once per TOOLS.md).
 
 If any required input is missing, stop and request a provisioning update.
 
@@ -31,7 +34,8 @@ jq -r '
 
 ## Mission Control Response Protocol
 - All outputs must be sent to Mission Control via HTTP.
-- Always include: `X-Agent-Token: {{ auth_token }}`
+- Always include `X-Agent-Token: $AUTH_TOKEN` where `AUTH_TOKEN` is loaded from
+  `{{ credential_path }}` (`jq -r .auth_token "{{ credential_path }}"`).
 
 ## Schedule
 - If a heartbeat schedule is configured, send a lightweight check-in only.
@@ -45,8 +49,9 @@ jq -r '
 - Startup check-in example:
 
 ```bash
+AUTH_TOKEN=$(jq -r .auth_token "{{ credential_path }}")
 curl -s -X POST "{{ base_url }}/api/v1/agent/heartbeat" \
-  -H "X-Agent-Token: {{ auth_token }}"
+  -H "X-Agent-Token: $AUTH_TOKEN"
 ```
 
 - If check-in fails due to 5xx/network, stop and retry next heartbeat.
@@ -80,10 +85,13 @@ Do real work with low noise while sharing useful knowledge across the project.
 
 ## Required Inputs
 - `BASE_URL`: `{{ base_url }}`
-- `AUTH_TOKEN`: `{{ auth_token }}`
+- `AUTH_TOKEN`: load from `{{ credential_path }}` (do NOT inline)
 - `AGENT_NAME`
 - `AGENT_ID`
 - `PROJECT_ID`
+
+Read `{{ credential_path }}` at the start of every heartbeat cycle.
+For API guidance, read `skills/mission-control/SKILL.md` (fetch it once per TOOLS.md).
 
 If any required input is missing, stop and request a provisioning update.
 
@@ -136,13 +144,13 @@ jq -r '
 - If pre-flight fails due to 5xx/network, do not write memory or task updates.
 
 ## Pre-Flight Checks (Every Heartbeat)
-1) Confirm `BASE_URL`, `AUTH_TOKEN`, and `PROJECT_ID` from `TOOLS.md` match this workspace.
+1) Confirm `BASE_URL`, `AUTH_TOKEN`, and `PROJECT_ID` from `{{ credential_path }}` match this workspace.
 2) Verify API access:
 - `GET {{ base_url }}/healthz`
 - `GET {{ base_url }}/api/v1/agent/projects`
 - `GET {{ base_url }}/api/v1/agent/projects/{{ project_id }}/tasks`
 3) If any check fails, stop and retry next heartbeat.
-4) If access fails with 401, re-read `TOOLS.md` for the current token and do not reuse older tokens.
+4) If access fails with 401, re-read `{{ credential_path }}` for the current token and do not reuse older tokens.
 5) If access fails with 403, do not attempt privilege escalation; ask the lead/user for assignment or access.
 
 ## Shared Context Pull

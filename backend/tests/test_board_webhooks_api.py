@@ -149,6 +149,7 @@ async def test_ingest_project_webhook_stores_payload_and_enqueues_for_lead_dispa
         agent_name: str,
         message: str,
         deliver: bool = False,
+        append_footer: bool = False,
     ) -> None:
         del self, config, deliver
         sent_messages.append(
@@ -246,6 +247,7 @@ async def test_ingest_project_webhook_rejects_disabled_endpoint(
         agent_name: str,
         message: str,
         deliver: bool = False,
+        append_footer: bool = False,
     ) -> None:
         del self, session_key, config, agent_name, deliver
         sent_messages.append(message)

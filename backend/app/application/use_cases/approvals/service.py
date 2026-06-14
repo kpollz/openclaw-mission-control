@@ -422,6 +422,7 @@ class ApprovalService:
             agent_name=lead.name,
             message=message,
             deliver=False,
+            append_footer=True,
         )
         if error is None:
             record_activity(

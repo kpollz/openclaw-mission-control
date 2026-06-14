@@ -95,6 +95,7 @@ async def _notify_target_agent(
         agent_name=target_agent.name,
         message=message,
         deliver=False,
+        append_footer=True,
     )
 
 

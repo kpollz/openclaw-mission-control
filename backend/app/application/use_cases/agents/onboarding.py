@@ -42,6 +42,7 @@ class ProjectOnboardingMessagingService(AbstractGatewayMessagingService):
                 agent_name="Gateway Agent",
                 message=prompt,
                 deliver=False,
+                append_footer=True,
             )
         except (OpenClawGatewayError, TimeoutError) as exc:
             self.logger.error(
@@ -100,6 +101,7 @@ class ProjectOnboardingMessagingService(AbstractGatewayMessagingService):
                 agent_name="Gateway Agent",
                 message=answer_text,
                 deliver=False,
+                append_footer=True,
             )
         except (OpenClawGatewayError, TimeoutError) as exc:
             self.logger.error(

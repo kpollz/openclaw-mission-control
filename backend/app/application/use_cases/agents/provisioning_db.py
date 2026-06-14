@@ -34,12 +34,10 @@ from app.application.use_cases.organizations.service import (
     require_project_access,
 )
 from app.domain.services.agent_policy import OpenClawAuthorizationPolicy
-from app.infrastructure.auth.agent_tokens import hash_agent_token, verify_agent_token
 from app.infrastructure.database import crud
 from app.infrastructure.database.engine import async_session_maker
 from app.infrastructure.database.pagination import paginate
 from app.infrastructure.gateway.constants import (
-    _TOOLS_KV_RE,
     DEFAULT_HEARTBEAT_CONFIG,
 )
 from app.infrastructure.gateway.internal.agent_key import agent_key as _agent_key
@@ -355,70 +353,6 @@ class _SyncContext:
     options: GatewayTemplateSyncOptions
 
 
-def _parse_tools_md(content: str) -> dict[str, str]:
-    values: dict[str, str] = {}
-    for raw in content.splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        match = _TOOLS_KV_RE.match(line)
-        if not match:
-            continue
-        values[match.group("key")] = match.group("value").strip()
-    return values
-
-
-async def _get_agent_file(
-    *,
-    agent_gateway_id: str,
-    name: str,
-    control_plane: OpenClawGatewayControlPlane,
-    backoff: GatewayBackoff | None = None,
-) -> str | None:
-    try:
-
-        async def _do_get() -> object:
-            return await control_plane.get_agent_file_payload(agent_id=agent_gateway_id, name=name)
-
-        payload = await (backoff.run(_do_get) if backoff else _do_get())
-    except OpenClawGatewayError:
-        return None
-    if isinstance(payload, str):
-        return payload
-    if isinstance(payload, dict):
-        content = payload.get("content")
-        if isinstance(content, str):
-            return content
-        file_obj = payload.get("file")
-        if isinstance(file_obj, dict):
-            nested = file_obj.get("content")
-            if isinstance(nested, str):
-                return nested
-    return None
-
-
-async def _get_existing_auth_token(
-    *,
-    agent_gateway_id: str,
-    control_plane: OpenClawGatewayControlPlane,
-    backoff: GatewayBackoff | None = None,
-) -> str | None:
-    tools = await _get_agent_file(
-        agent_gateway_id=agent_gateway_id,
-        name="TOOLS.md",
-        control_plane=control_plane,
-        backoff=backoff,
-    )
-    if not tools:
-        return None
-    values = _parse_tools_md(tools)
-    token = values.get("AUTH_TOKEN")
-    if not token:
-        return None
-    token = token.strip()
-    return token or None
-
-
 async def _paused_project_ids(session: AsyncSession, project_ids: list[UUID]) -> set[UUID]:
     if not project_ids:
         return set()
@@ -520,47 +454,11 @@ async def _resolve_agent_auth_token(
     *,
     agent_gateway_id: str,
 ) -> tuple[str | None, bool]:
-    try:
-        auth_token = await _get_existing_auth_token(
-            agent_gateway_id=agent_gateway_id,
-            control_plane=ctx.control_plane,
-            backoff=ctx.backoff,
-        )
-    except TimeoutError as exc:
-        _append_sync_error(result, agent=agent, project=project, message=str(exc))
-        return None, True
-
-    if not auth_token:
-        if not ctx.options.rotate_tokens:
-            result.agents_skipped += 1
-            _append_sync_error(
-                result,
-                agent=agent,
-                project=project,
-                message=(
-                    "Skipping agent: unable to read AUTH_TOKEN from TOOLS.md "
-                    "(run with rotate_tokens=true to re-key)."
-                ),
-            )
-            return None, False
-        auth_token = await _rotate_agent_token(ctx.session, agent)
-
-    if agent.agent_token_hash and not verify_agent_token(
-        auth_token,
-        agent.agent_token_hash,
-    ):
-        if ctx.options.rotate_tokens:
-            auth_token = await _rotate_agent_token(ctx.session, agent)
-        else:
-            _append_sync_error(
-                result,
-                agent=agent,
-                project=project,
-                message=(
-                    "Warning: AUTH_TOKEN in TOOLS.md does not match backend "
-                    "token hash (agent auth may be broken)."
-                ),
-            )
+    # The token no longer lives in any gateway-readable workspace file, so there
+    # is nothing to recover. Mint a fresh token; the wakeup message delivered by
+    # the lifecycle will tell the agent to rewrite mission_control_credential.json.
+    _ = (result, project, agent_gateway_id)
+    auth_token = await _rotate_agent_token(ctx.session, agent)
     return auth_token, False
 
 
@@ -1315,48 +1213,6 @@ class AgentLifecycleService(OpenClawDBService):
             gateway=gateway,
         )
 
-    async def resolve_existing_agent_token_for_update(
-        self,
-        *,
-        agent: Agent,
-        target: AgentUpdateProvisionTarget,
-    ) -> str:
-        """Read the current workspace token for update flows without rotating it."""
-        config = gateway_client_config(target.gateway)
-        control_plane = OpenClawGatewayControlPlane(config)
-        gateway_agent_id = (
-            GatewayAgentIdentity.openclaw_agent_id(target.gateway)
-            if target.is_main_agent
-            else _agent_key(agent)
-        )
-        raw_token = await _get_existing_auth_token(
-            agent_gateway_id=gateway_agent_id,
-            control_plane=control_plane,
-        )
-        if not raw_token:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    "Unable to read the current AUTH_TOKEN from the agent workspace. "
-                    "Use resend-token to rotate and resync token files."
-                ),
-            )
-        if agent.agent_token_hash and not verify_agent_token(raw_token, agent.agent_token_hash):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    "Workspace AUTH_TOKEN does not match the backend token hash. "
-                    "Use resend-token to rotate and resync token files."
-                ),
-            )
-        if not agent.agent_token_hash:
-            agent.agent_token_hash = hash_agent_token(raw_token)
-            agent.updated_at = utcnow()
-            self.session.add(agent)
-            await self.session.commit()
-            await self.session.refresh(agent)
-        return raw_token
-
     async def provision_updated_agent(
         self,
         *,
@@ -1652,10 +1508,10 @@ class AgentLifecycleService(OpenClawDBService):
             main_gateway=main_gateway,
             gateway_for_main=gateway_for_main,
         )
-        raw_token = await self.resolve_existing_agent_token_for_update(
-            agent=agent,
-            target=target,
-        )
+        # Rotate the token on update and let the wakeup redeliver it to the
+        # agent's credential file. We no longer recover the previous token from
+        # the workspace (it is not stored in any gateway-readable file).
+        raw_token = await _rotate_agent_token(self.session, agent)
         provision_request = AgentUpdateProvisionRequest(
             target=target,
             raw_token=raw_token,

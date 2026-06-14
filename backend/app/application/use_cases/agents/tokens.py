@@ -25,6 +25,8 @@ from app.infrastructure.gateway.provisioner import (
     OpenClawGatewayControlPlane,
     _build_context,
     _build_main_context,
+    _credential_json,
+    _credential_write_instruction,
     _render_agent_files,
 )
 from app.infrastructure.gateway.resolver import gateway_client_config, require_gateway_for_project
@@ -311,15 +313,39 @@ class AgentTokenService(OpenClawDBService):
         raw_token: str,
     ) -> None:
         config = self._gateway_config(target.gateway)
+        agent = target.agent
+        if agent.project_id is None:
+            role = "main"
+        elif agent.is_project_lead:
+            role = "lead"
+        else:
+            role = "worker"
+        context = target.context
+        credential_path = str(context.get("credential_path") or "")
+        workspace_path = str(context.get("workspace_path") or "")
+        base_url = str(context.get("base_url") or "")
+        credential_json = _credential_json(
+            base_url=base_url,
+            auth_token=raw_token,
+            agent_id=str(agent.id),
+            agent_name=agent.name,
+            role=role,
+            project_id=str(agent.project_id) if agent.project_id is not None else None,
+            workspace_path=workspace_path,
+        )
+        write_instruction = _credential_write_instruction(
+            credential_path=credential_path,
+            credential_json=credential_json,
+        )
         try:
-            await ensure_session(target.session_key, config=config, label=target.agent.name)
+            await ensure_session(target.session_key, config=config, label=agent.name)
             await send_message(
                 (
-                    "Your AUTH_TOKEN has been rotated and token-bearing files were refreshed.\n"
-                    "Re-read TOOLS.md and HEARTBEAT.md, then test heartbeat with:\n"
-                    f"export BASE_URL=\"{target.context['base_url']}\"\n"
-                    f'export AUTH_TOKEN="{raw_token}"\n'
-                    'curl -fsS -X POST "$BASE_URL/api/v1/agent/heartbeat" '
+                    "Your Mission Control token was rotated.\n\n"
+                    f"{write_instruction}\n\n"
+                    "Then verify it works:\n"
+                    f'AUTH_TOKEN=$(jq -r .auth_token "{credential_path}")\n'
+                    f'curl -fsS -X POST "{base_url}/api/v1/agent/heartbeat" '
                     '-H "X-Agent-Token: $AUTH_TOKEN"'
                 ),
                 session_key=target.session_key,

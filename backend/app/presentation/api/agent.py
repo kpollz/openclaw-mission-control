@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import PlainTextResponse
 from sqlmodel import SQLModel
 
 from app.presentation.api.deps import ActorContext, get_project_or_404, get_task_or_404
@@ -40,6 +41,7 @@ from app.presentation.schemas.health import AgentHealthStatusResponse
 from app.presentation.schemas.pagination import DefaultLimitOffsetPage
 from app.presentation.schemas.tags import TagRef
 from app.presentation.schemas.tasks import TaskCommentCreate, TaskCommentRead, TaskCreate, TaskRead, TaskUpdate
+from app.infrastructure.gateway.provisioner import render_mission_control_skill_document
 from app.application.use_cases.agents.project_context import AgentProjectContextService
 from app.application.use_cases.agents.coordination import GatewayCoordinationService
 from app.domain.services.agent_policy import OpenClawAuthorizationPolicy
@@ -239,6 +241,53 @@ def agent_healthz(
         status=agent_ctx.agent.status,
         is_project_lead=agent_ctx.agent.is_project_lead,
     )
+
+
+def _render_skill_for_agent(agent: Agent, relative_name: str) -> str:
+    return render_mission_control_skill_document(
+        relative_name,
+        is_main=agent.project_id is None,
+        is_lead=bool(agent.is_project_lead),
+        project_id=str(agent.project_id) if agent.project_id is not None else None,
+    )
+
+
+@router.get(
+    "/skills/mission-control/SKILL.md",
+    response_class=PlainTextResponse,
+    tags=AGENT_ALL_ROLE_TAGS,
+    summary="Mission Control skill document",
+    description=(
+        "Returns the `mission-control` skill markdown, rendered for the calling "
+        "agent's role. Agents fetch this into their own workspace at "
+        "`skills/mission-control/SKILL.md`."
+    ),
+)
+def agent_skill_document(
+    agent_ctx: AgentAuthContext = AGENT_CTX_DEP,
+) -> PlainTextResponse:
+    """Serve the role-specific mission-control SKILL.md for the authenticated agent."""
+    content = _render_skill_for_agent(agent_ctx.agent, "SKILL.md")
+    return PlainTextResponse(content, media_type="text/markdown; charset=utf-8")
+
+
+@router.get(
+    "/skills/mission-control/references/api_schema.md",
+    response_class=PlainTextResponse,
+    tags=AGENT_ALL_ROLE_TAGS,
+    summary="Mission Control API schema reference",
+    description=(
+        "Returns the mission-control API endpoint catalogue, rendered for the "
+        "calling agent's role. Agents fetch this into their workspace at "
+        "`skills/mission-control/references/api_schema.md`."
+    ),
+)
+def agent_skill_api_schema(
+    agent_ctx: AgentAuthContext = AGENT_CTX_DEP,
+) -> PlainTextResponse:
+    """Serve the mission-control API schema reference for the authenticated agent."""
+    content = _render_skill_for_agent(agent_ctx.agent, "references/api_schema.md")
+    return PlainTextResponse(content, media_type="text/markdown; charset=utf-8")
 
 
 @router.get(

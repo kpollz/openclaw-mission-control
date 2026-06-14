@@ -162,6 +162,7 @@ class ProjectService:
         error = await dispatch.try_send_agent_message(
             session_key=lead.openclaw_session_id, config=config,
             agent_name=lead.name, message=message, deliver=False,
+            append_footer=True,
         )
         if error is None:
             record_activity(

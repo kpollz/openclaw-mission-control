@@ -6,7 +6,6 @@ import asyncio
 import json
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
 from sse_starlette.sse import EventSourceResponse
@@ -14,7 +13,6 @@ from sse_starlette.sse import EventSourceResponse
 from app.application.use_cases.approvals.service import ApprovalService
 from app.infrastructure.database.engine import async_session_maker, get_session
 from app.infrastructure.persistence.approval_task_links import task_counts_for_project
-from app.infrastructure.models.approvals import Approval
 from app.infrastructure.models.projects import Project
 from app.presentation.api.deps import (
     ActorContext,
@@ -92,7 +90,7 @@ async def stream_approvals(
             async with async_session_maker() as session:
                 svc = ApprovalService(session)
                 approvals = await svc.fetch_approval_events(project.id, last_seen)
-                approval_reads = await _approval_reads(session, approvals)
+                approval_reads = await svc._approval_reads(approvals)
                 pending_approvals_count = await svc.count_pending_approvals(project.id)
                 task_ids = {
                     task_id

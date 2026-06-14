@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import asyncio
 
-from fastapi import HTTPException
-
 from app.shared.logging import get_logger
 from app.shared.time import utcnow
 from app.infrastructure.database.engine import async_session_maker
@@ -15,7 +13,6 @@ from app.infrastructure.models.gateways import Gateway
 from app.infrastructure.gateway.constants import MAX_WAKE_ATTEMPTS_WITHOUT_CHECKIN
 from app.application.use_cases.agents.lifecycle import AgentLifecycleOrchestrator
 from app.infrastructure.queue.lifecycle_queue import decode_lifecycle_task, defer_lifecycle_reconcile
-from app.application.use_cases.agents.provisioning_db import AgentLifecycleService, AgentUpdateProvisionTarget
 from app.infrastructure.queue.redis_queue import QueuedTask
 
 logger = get_logger(__name__)
@@ -120,42 +117,11 @@ async def process_lifecycle_queue_task(task: QueuedTask) -> None:
 
         orchestrator = AgentLifecycleOrchestrator(session)
 
-        # Try to reuse the existing workspace token so we do not rotate it
-        # unnecessarily.  If the gateway is unreachable (agent just created,
-        # workspace files not yet pushed, transient network error) we fall
-        # back to minting a fresh token inside run_lifecycle so the reconcile
-        # can still make progress.
-        raw_token: str | None = None
-        try:
-            raw_token = await AgentLifecycleService(
-                session,
-            ).resolve_existing_agent_token_for_update(
-                agent=agent,
-                target=AgentUpdateProvisionTarget(
-                    is_main_agent=agent.project_id is None,
-                    project=project,
-                    gateway=gateway,
-                ),
-            )
-        except HTTPException as exc:
-            logger.warning(
-                "lifecycle.reconcile.token_resolve_failed",
-                extra={
-                    "agent_id": str(agent.id),
-                    "detail": exc.detail,
-                },
-            )
-            # Defer the reconcile so the agent gets another chance once the
-            # gateway/project is ready.  Keep the same wake-attempt count
-            # so we do not artificially exhaust the budget on transient
-            # gateway-unavailable errors.
-            if not defer_lifecycle_reconcile(task, delay_seconds=15.0):
-                logger.error(
-                    "lifecycle.reconcile.defer_failed",
-                    extra={"agent_id": str(agent.id)},
-                )
-            return
-
+        # Mint a fresh token for this reconcile and let the wakeup message
+        # redeliver it to the agent's credential file. We no longer try to
+        # recover the previous token from the rendered TOOLS.md (the token no
+        # longer lives in any gateway-readable workspace file). Rotating is cheap
+        # now — the agent just rewrites mission_control_credential.json on wake.
         await asyncio.wait_for(
             orchestrator.run_lifecycle(
                 gateway=gateway,
@@ -163,7 +129,7 @@ async def process_lifecycle_queue_task(task: QueuedTask) -> None:
                 project=project,
                 user=None,
                 action="update",
-                auth_token=raw_token,
+                auth_token=None,
                 force_bootstrap=False,
                 reset_session=True,
                 wake=True,

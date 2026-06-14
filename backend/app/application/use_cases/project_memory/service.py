@@ -157,6 +157,7 @@ class ProjectMemoryService:
                 agent_name=agent.name,
                 message=command,
                 deliver=True,
+                append_footer=True,
             )
             if error is not None:
                 continue
@@ -245,6 +246,7 @@ class ProjectMemoryService:
                 config=config,
                 agent_name=agent.name,
                 message=message,
+                append_footer=True,
             )
             if error is not None:
                 continue

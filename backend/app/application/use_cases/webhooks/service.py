@@ -341,6 +341,7 @@ class ProjectWebhookService:
             agent_name=target_agent.name,
             message=message,
             deliver=False,
+            append_footer=True,
         )
 
     # ------------------------------------------------------------------

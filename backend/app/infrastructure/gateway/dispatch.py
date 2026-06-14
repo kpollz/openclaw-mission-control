@@ -21,6 +21,24 @@ from app.infrastructure.models.projects import Project as Project
 from app.infrastructure.models.gateways import Gateway
 
 
+def mission_control_agent_footer() -> str:
+    """Reminder appended to every system message sent to a project agent.
+
+    Token-free by design — points the agent at the on-disk credential + skill so
+    the same source of truth governs every API call regardless of which surface
+    triggered the message.
+    """
+    return (
+        "\n\n---\n"
+        "QUAN TRỌNG — trước khi gọi bất kỳ API nào:\n"
+        "1) Lấy token + IDs từ `mission_control_credential.json` "
+        "(vd `AUTH_TOKEN=$(jq -r .auth_token mission_control_credential.json)`). "
+        "KHÔNG lấy token từ env hay parse bằng sed/backtick.\n"
+        "2) Đọc skill `mission-control` (`skills/mission-control/SKILL.md`) "
+        "để biết endpoint và cách viết lệnh đúng trước khi chạy.\n"
+    )
+
+
 class GatewayDispatchService(OpenClawDBService):
     """Resolve gateway config for projects and dispatch messages to agent sessions."""
 
@@ -46,9 +64,11 @@ class GatewayDispatchService(OpenClawDBService):
         agent_name: str,
         message: str,
         deliver: bool = False,
+        append_footer: bool = False,
     ) -> None:
         await ensure_session(session_key, config=config, label=agent_name)
-        await send_message(message, session_key=session_key, config=config, deliver=deliver)
+        payload = f"{message}{mission_control_agent_footer()}" if append_footer else message
+        await send_message(payload, session_key=session_key, config=config, deliver=deliver)
 
     async def try_send_agent_message(
         self,
@@ -58,6 +78,7 @@ class GatewayDispatchService(OpenClawDBService):
         agent_name: str,
         message: str,
         deliver: bool = False,
+        append_footer: bool = False,
     ) -> OpenClawGatewayError | None:
         try:
             await self.send_agent_message(
@@ -66,6 +87,7 @@ class GatewayDispatchService(OpenClawDBService):
                 agent_name=agent_name,
                 message=message,
                 deliver=deliver,
+                append_footer=append_footer,
             )
         except OpenClawGatewayError as exc:
             return exc
