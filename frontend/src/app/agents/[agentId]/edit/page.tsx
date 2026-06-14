@@ -14,10 +14,10 @@ import {
   useUpdateAgentApiV1AgentsAgentIdPatch,
 } from "@/api/generated/agents/agents";
 import {
-  type listBoardsApiV1BoardsGetResponse,
-  useListBoardsApiV1BoardsGet,
-} from "@/api/generated/boards/boards";
-import type { AgentRead, AgentUpdate, BoardRead } from "@/api/generated/model";
+  type listProjectsApiV1ProjectsGetResponse,
+  useListProjectsApiV1ProjectsGet,
+} from "@/api/generated/projects/projects";
+import type { AgentRead, AgentUpdate, ProjectRead } from "@/api/generated/model";
 import { DashboardPageLayout } from "@/components/templates/DashboardPageLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,7 +40,7 @@ type IdentityProfile = {
   emoji: string;
 };
 
-const getBoardOptions = (boards: BoardRead[]): SearchableSelectOption[] =>
+const getBoardOptions = (boards: ProjectRead[]): SearchableSelectOption[] =>
   boards.map((board) => ({
     value: board.id,
     label: board.name,
@@ -87,7 +87,7 @@ export default function EditAgentPage() {
   const agentId = Array.isArray(agentIdParam) ? agentIdParam[0] : agentIdParam;
 
   const [name, setName] = useState<string | undefined>(undefined);
-  const [boardId, setBoardId] = useState<string | undefined>(undefined);
+  const [projectId, setBoardId] = useState<string | undefined>(undefined);
   const [isGatewayMain, setIsGatewayMain] = useState<boolean | undefined>(
     undefined,
   );
@@ -99,8 +99,8 @@ export default function EditAgentPage() {
   >(undefined);
   const [error, setError] = useState<string | null>(null);
 
-  const boardsQuery = useListBoardsApiV1BoardsGet<
-    listBoardsApiV1BoardsGetResponse,
+  const boardsQuery = useListProjectsApiV1ProjectsGet<
+    listProjectsApiV1ProjectsGetResponse,
     ApiError
   >(undefined, {
     query: {
@@ -134,7 +134,7 @@ export default function EditAgentPage() {
     },
   });
 
-  const boards = useMemo<BoardRead[]>(() => {
+  const boards = useMemo<ProjectRead[]>(() => {
     if (boardsQuery.data?.status !== 200) return [];
     return boardsQuery.data.data.items ?? [];
   }, [boardsQuery.data]);
@@ -181,9 +181,9 @@ export default function EditAgentPage() {
   const resolvedIdentityProfile = identityProfile ?? loadedIdentityProfile;
 
   const resolvedBoardId = useMemo(() => {
-    if (resolvedIsGatewayMain) return boardId ?? "";
-    return boardId ?? loadedAgent?.board_id ?? boards[0]?.id ?? "";
-  }, [boardId, boards, loadedAgent?.board_id, resolvedIsGatewayMain]);
+    if (resolvedIsGatewayMain) return projectId ?? "";
+    return projectId ?? loadedAgent?.project_id ?? boards[0]?.id ?? "";
+  }, [projectId, boards, loadedAgent?.project_id, resolvedIsGatewayMain]);
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -201,7 +201,7 @@ export default function EditAgentPage() {
       resolvedIsGatewayMain &&
       !resolvedBoardId &&
       !loadedAgent.is_gateway_main &&
-      !loadedAgent.board_id
+      !loadedAgent.project_id
     ) {
       setError(
         "Select a board once so we can resolve the gateway main session key.",
@@ -233,9 +233,9 @@ export default function EditAgentPage() {
       ) as unknown as Record<string, unknown> | null,
     };
     if (!resolvedIsGatewayMain) {
-      payload.board_id = resolvedBoardId || null;
+      payload.project_id = resolvedBoardId || null;
     } else if (resolvedBoardId) {
-      payload.board_id = resolvedBoardId;
+      payload.project_id = resolvedBoardId;
     }
     if (Boolean(loadedAgent.is_gateway_main) !== resolvedIsGatewayMain) {
       payload.is_gateway_main = resolvedIsGatewayMain;

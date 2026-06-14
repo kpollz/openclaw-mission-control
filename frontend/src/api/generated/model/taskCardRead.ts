@@ -5,6 +5,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { TagRef } from "./tagRef";
+import type { TaskCardReadChangeLog } from "./taskCardReadChangeLog";
 import type { TaskCardReadCustomFieldValues } from "./taskCardReadCustomFieldValues";
 import type { TaskCardReadStatus } from "./taskCardReadStatus";
 
@@ -12,25 +13,30 @@ import type { TaskCardReadStatus } from "./taskCardReadStatus";
  * Task read model enriched with assignee and approval counters.
  */
 export interface TaskCardRead {
+  title: string;
+  description?: string | null;
+  status?: TaskCardReadStatus;
+  status_reason?: string | null;
+  output?: string | null;
+  priority?: string;
+  due_at?: string | null;
+  assigned_agent_id?: string | null;
+  depends_on_task_ids?: string[];
+  tag_ids?: string[];
+  id: string;
+  project_id: string | null;
+  created_by_user_id: string | null;
+  created_by_agent_id?: string | null;
+  in_progress_at: string | null;
+  completed_at?: string | null;
+  change_log?: TaskCardReadChangeLog;
+  created_at: string;
+  updated_at: string;
+  blocked_by_task_ids?: string[];
+  is_blocked?: boolean;
+  tags?: TagRef[];
+  custom_field_values?: TaskCardReadCustomFieldValues;
+  assignee?: string | null;
   approvals_count?: number;
   approvals_pending_count?: number;
-  assigned_agent_id?: string | null;
-  assignee?: string | null;
-  blocked_by_task_ids?: string[];
-  board_id: string | null;
-  created_at: string;
-  created_by_user_id: string | null;
-  custom_field_values?: TaskCardReadCustomFieldValues;
-  depends_on_task_ids?: string[];
-  description?: string | null;
-  due_at?: string | null;
-  id: string;
-  in_progress_at: string | null;
-  is_blocked?: boolean;
-  priority?: string;
-  status?: TaskCardReadStatus;
-  tag_ids?: string[];
-  tags?: TagRef[];
-  title: string;
-  updated_at: string;
 }

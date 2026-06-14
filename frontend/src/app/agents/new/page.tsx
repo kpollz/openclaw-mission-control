@@ -9,12 +9,12 @@ import { useAuth } from "@/auth/clerk";
 
 import { ApiError } from "@/api/mutator";
 import {
-  type listBoardsApiV1BoardsGetResponse,
-  useListBoardsApiV1BoardsGet,
-} from "@/api/generated/boards/boards";
+  type listProjectsApiV1ProjectsGetResponse,
+  useListProjectsApiV1ProjectsGet,
+} from "@/api/generated/projects/projects";
 import { useCreateAgentApiV1AgentsPost } from "@/api/generated/agents/agents";
 import { useOrganizationMembership } from "@/lib/use-organization-membership";
-import type { BoardRead } from "@/api/generated/model";
+import type { ProjectRead } from "@/api/generated/model";
 import { DashboardPageLayout } from "@/components/templates/DashboardPageLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,10 +37,10 @@ type IdentityProfile = {
   emoji: string;
 };
 
-const getBoardOptions = (boards: BoardRead[]): SearchableSelectOption[] =>
-  boards.map((board) => ({
-    value: board.id,
-    label: board.name,
+const getProjectOptions = (projects: ProjectRead[]): SearchableSelectOption[] =>
+  projects.map((project) => ({
+    value: project.id,
+    label: project.name,
   }));
 
 const normalizeIdentityProfile = (
@@ -62,15 +62,15 @@ export default function NewAgentPage() {
   const { isAdmin } = useOrganizationMembership(isSignedIn);
 
   const [name, setName] = useState("");
-  const [boardId, setBoardId] = useState<string>("");
+  const [projectId, setProjectId] = useState<string>("");
   const [heartbeatEvery, setHeartbeatEvery] = useState("10m");
   const [identityProfile, setIdentityProfile] = useState<IdentityProfile>({
     ...DEFAULT_IDENTITY_PROFILE,
   });
   const [error, setError] = useState<string | null>(null);
 
-  const boardsQuery = useListBoardsApiV1BoardsGet<
-    listBoardsApiV1BoardsGetResponse,
+  const boardsQuery = useListProjectsApiV1ProjectsGet<
+    listProjectsApiV1ProjectsGetResponse,
     ApiError
   >(undefined, {
     query: {
@@ -94,7 +94,7 @@ export default function NewAgentPage() {
 
   const boards =
     boardsQuery.data?.status === 200 ? (boardsQuery.data.data.items ?? []) : [];
-  const displayBoardId = boardId || boards[0]?.id || "";
+  const displayProjectId = projectId || boards[0]?.id || "";
   const isLoading = boardsQuery.isLoading || createAgentMutation.isPending;
   const errorMessage = error ?? boardsQuery.error?.message ?? null;
 
@@ -106,16 +106,16 @@ export default function NewAgentPage() {
       setError("Agent name is required.");
       return;
     }
-    const resolvedBoardId = displayBoardId;
-    if (!resolvedBoardId) {
-      setError("Select a board before creating an agent.");
+    const resolvedProjectId = displayProjectId;
+    if (!resolvedProjectId) {
+      setError("Select a project before creating an agent.");
       return;
     }
     setError(null);
     createAgentMutation.mutate({
       data: {
         name: trimmed,
-        board_id: resolvedBoardId,
+        project_id: resolvedProjectId,
         heartbeat_config: {
           every: heartbeatEvery.trim() || "10m",
           target: "last",
@@ -181,16 +181,16 @@ export default function NewAgentPage() {
             <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-900">
-                  Board <span className="text-red-500">*</span>
+                  Project <span className="text-red-500">*</span>
                 </label>
                 <SearchableSelect
-                  ariaLabel="Select board"
-                  value={displayBoardId}
-                  onValueChange={setBoardId}
-                  options={getBoardOptions(boards)}
-                  placeholder="Select board"
-                  searchPlaceholder="Search boards..."
-                  emptyMessage="No matching boards."
+                  ariaLabel="Select project"
+                  value={displayProjectId}
+                  onValueChange={setProjectId}
+                  options={getProjectOptions(boards)}
+                  placeholder="Select project"
+                  searchPlaceholder="Search projects..."
+                  emptyMessage="No matching projects."
                   triggerClassName="w-full h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                   contentClassName="rounded-xl border border-slate-200 shadow-lg"
                   itemClassName="px-4 py-3 text-sm text-slate-700 data-[selected=true]:bg-slate-50 data-[selected=true]:text-slate-900"
@@ -198,7 +198,7 @@ export default function NewAgentPage() {
                 />
                 {boards.length === 0 ? (
                   <p className="text-xs text-slate-500">
-                    Create a board before adding agents.
+                    Create a project before adding agents.
                   </p>
                 ) : null}
               </div>

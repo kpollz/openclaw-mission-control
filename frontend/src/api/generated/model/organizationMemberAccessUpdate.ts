@@ -4,13 +4,13 @@
  * Mission Control API
  * OpenAPI spec version: 0.1.0
  */
-import type { OrganizationBoardAccessSpec } from "./organizationBoardAccessSpec";
+import type { OrganizationProjectAccessSpec } from "./organizationProjectAccessSpec";
 
 /**
  * Payload for replacing organization member access permissions.
  */
 export interface OrganizationMemberAccessUpdate {
-  all_boards_read?: boolean;
-  all_boards_write?: boolean;
-  board_access?: OrganizationBoardAccessSpec[];
+  all_projects_read?: boolean;
+  all_projects_write?: boolean;
+  project_access?: OrganizationProjectAccessSpec[];
 }

@@ -6,10 +6,10 @@ import logging
 
 import pytest
 
-from app.core import error_handling as error_handling_module
-from app.core.error_handling import REQUEST_ID_HEADER, RequestIdMiddleware
-from app.core.logging import TRACE_LEVEL, AppLogFilter, get_logger
-from app.core.version import APP_NAME, APP_VERSION
+from app.presentation import error_handling as error_handling_module
+from app.presentation.error_handling import REQUEST_ID_HEADER, RequestIdMiddleware
+from app.shared.logging import TRACE_LEVEL, AppLogFilter, get_logger
+from app.shared.version import APP_NAME, APP_VERSION
 
 
 @pytest.mark.asyncio

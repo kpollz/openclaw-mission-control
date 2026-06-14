@@ -6,7 +6,7 @@
  */
 
 export type ListAgentsApiV1AgentsGetParams = {
-  board_id?: string | null;
+  project_id?: string | null;
   gateway_id?: string | null;
   /**
    * @minimum 1

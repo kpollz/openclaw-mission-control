@@ -9,8 +9,8 @@ from fastapi.testclient import TestClient
 from pydantic import BaseModel, Field
 from starlette.requests import Request
 
-from app.core import error_handling
-from app.core.error_handling import (
+from app.presentation import error_handling
+from app.presentation.error_handling import (
     REQUEST_ID_HEADER,
     _error_payload,
     _get_request_id,

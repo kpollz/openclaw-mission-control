@@ -6,14 +6,14 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
-import app.services.openclaw.admin_service as admin_service
-import app.services.openclaw.gateway_compat as gateway_compat
-import app.services.openclaw.session_service as session_service
-from app.schemas.gateway_api import GatewayResolveQuery
-from app.services.openclaw.admin_service import GatewayAdminLifecycleService
-from app.services.openclaw.gateway_compat import GatewayVersionCheckResult
-from app.services.openclaw.gateway_rpc import GatewayConfig, OpenClawGatewayError
-from app.services.openclaw.session_service import GatewaySessionService
+import app.application.use_cases.agents.admin as admin_service
+import app.infrastructure.gateway.compatibility as gateway_compat
+import app.application.use_cases.agents.session as session_service
+from app.presentation.schemas.gateway_api import GatewayResolveQuery
+from app.application.use_cases.agents.admin import GatewayAdminLifecycleService
+from app.infrastructure.gateway.compatibility import GatewayVersionCheckResult
+from app.infrastructure.gateway.rpc_client import GatewayConfig, OpenClawGatewayError
+from app.application.use_cases.agents.session import GatewaySessionService
 
 
 def test_extract_connect_server_version_uses_server_version_as_source_of_truth() -> None:

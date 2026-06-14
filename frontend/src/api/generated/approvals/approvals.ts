@@ -26,8 +26,8 @@ import type {
   ApprovalUpdate,
   HTTPValidationError,
   LimitOffsetPageTypeVarCustomizedApprovalRead,
-  ListApprovalsApiV1BoardsBoardIdApprovalsGetParams,
-  StreamApprovalsApiV1BoardsBoardIdApprovalsStreamGetParams,
+  ListApprovalsApiV1ProjectsProjectIdApprovalsGetParams,
+  StreamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetParams,
 } from ".././model";
 
 import { customFetch } from "../../mutator";
@@ -35,35 +35,35 @@ import { customFetch } from "../../mutator";
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 /**
- * List approvals for a board, optionally filtering by status.
+ * List approvals for a project, optionally filtering by status.
  * @summary List Approvals
  */
-export type listApprovalsApiV1BoardsBoardIdApprovalsGetResponse200 = {
+export type listApprovalsApiV1ProjectsProjectIdApprovalsGetResponse200 = {
   data: LimitOffsetPageTypeVarCustomizedApprovalRead;
   status: 200;
 };
 
-export type listApprovalsApiV1BoardsBoardIdApprovalsGetResponse422 = {
+export type listApprovalsApiV1ProjectsProjectIdApprovalsGetResponse422 = {
   data: HTTPValidationError;
   status: 422;
 };
 
-export type listApprovalsApiV1BoardsBoardIdApprovalsGetResponseSuccess =
-  listApprovalsApiV1BoardsBoardIdApprovalsGetResponse200 & {
+export type listApprovalsApiV1ProjectsProjectIdApprovalsGetResponseSuccess =
+  listApprovalsApiV1ProjectsProjectIdApprovalsGetResponse200 & {
     headers: Headers;
   };
-export type listApprovalsApiV1BoardsBoardIdApprovalsGetResponseError =
-  listApprovalsApiV1BoardsBoardIdApprovalsGetResponse422 & {
+export type listApprovalsApiV1ProjectsProjectIdApprovalsGetResponseError =
+  listApprovalsApiV1ProjectsProjectIdApprovalsGetResponse422 & {
     headers: Headers;
   };
 
-export type listApprovalsApiV1BoardsBoardIdApprovalsGetResponse =
-  | listApprovalsApiV1BoardsBoardIdApprovalsGetResponseSuccess
-  | listApprovalsApiV1BoardsBoardIdApprovalsGetResponseError;
+export type listApprovalsApiV1ProjectsProjectIdApprovalsGetResponse =
+  | listApprovalsApiV1ProjectsProjectIdApprovalsGetResponseSuccess
+  | listApprovalsApiV1ProjectsProjectIdApprovalsGetResponseError;
 
-export const getListApprovalsApiV1BoardsBoardIdApprovalsGetUrl = (
-  boardId: string,
-  params?: ListApprovalsApiV1BoardsBoardIdApprovalsGetParams,
+export const getListApprovalsApiV1ProjectsProjectIdApprovalsGetUrl = (
+  projectId: string,
+  params?: ListApprovalsApiV1ProjectsProjectIdApprovalsGetParams,
 ) => {
   const normalizedParams = new URLSearchParams();
 
@@ -76,17 +76,17 @@ export const getListApprovalsApiV1BoardsBoardIdApprovalsGetUrl = (
   const stringifiedParams = normalizedParams.toString();
 
   return stringifiedParams.length > 0
-    ? `/api/v1/boards/${boardId}/approvals?${stringifiedParams}`
-    : `/api/v1/boards/${boardId}/approvals`;
+    ? `/api/v1/projects/${projectId}/approvals?${stringifiedParams}`
+    : `/api/v1/projects/${projectId}/approvals`;
 };
 
-export const listApprovalsApiV1BoardsBoardIdApprovalsGet = async (
-  boardId: string,
-  params?: ListApprovalsApiV1BoardsBoardIdApprovalsGetParams,
+export const listApprovalsApiV1ProjectsProjectIdApprovalsGet = async (
+  projectId: string,
+  params?: ListApprovalsApiV1ProjectsProjectIdApprovalsGetParams,
   options?: RequestInit,
-): Promise<listApprovalsApiV1BoardsBoardIdApprovalsGetResponse> => {
-  return customFetch<listApprovalsApiV1BoardsBoardIdApprovalsGetResponse>(
-    getListApprovalsApiV1BoardsBoardIdApprovalsGetUrl(boardId, params),
+): Promise<listApprovalsApiV1ProjectsProjectIdApprovalsGetResponse> => {
+  return customFetch<listApprovalsApiV1ProjectsProjectIdApprovalsGetResponse>(
+    getListApprovalsApiV1ProjectsProjectIdApprovalsGetUrl(projectId, params),
     {
       ...options,
       method: "GET",
@@ -94,28 +94,30 @@ export const listApprovalsApiV1BoardsBoardIdApprovalsGet = async (
   );
 };
 
-export const getListApprovalsApiV1BoardsBoardIdApprovalsGetQueryKey = (
-  boardId: string,
-  params?: ListApprovalsApiV1BoardsBoardIdApprovalsGetParams,
+export const getListApprovalsApiV1ProjectsProjectIdApprovalsGetQueryKey = (
+  projectId: string,
+  params?: ListApprovalsApiV1ProjectsProjectIdApprovalsGetParams,
 ) => {
   return [
-    `/api/v1/boards/${boardId}/approvals`,
+    `/api/v1/projects/${projectId}/approvals`,
     ...(params ? [params] : []),
   ] as const;
 };
 
-export const getListApprovalsApiV1BoardsBoardIdApprovalsGetQueryOptions = <
+export const getListApprovalsApiV1ProjectsProjectIdApprovalsGetQueryOptions = <
   TData = Awaited<
-    ReturnType<typeof listApprovalsApiV1BoardsBoardIdApprovalsGet>
+    ReturnType<typeof listApprovalsApiV1ProjectsProjectIdApprovalsGet>
   >,
   TError = HTTPValidationError,
 >(
-  boardId: string,
-  params?: ListApprovalsApiV1BoardsBoardIdApprovalsGetParams,
+  projectId: string,
+  params?: ListApprovalsApiV1ProjectsProjectIdApprovalsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listApprovalsApiV1BoardsBoardIdApprovalsGet>>,
+        Awaited<
+          ReturnType<typeof listApprovalsApiV1ProjectsProjectIdApprovalsGet>
+        >,
         TError,
         TData
       >
@@ -127,12 +129,15 @@ export const getListApprovalsApiV1BoardsBoardIdApprovalsGetQueryOptions = <
 
   const queryKey =
     queryOptions?.queryKey ??
-    getListApprovalsApiV1BoardsBoardIdApprovalsGetQueryKey(boardId, params);
+    getListApprovalsApiV1ProjectsProjectIdApprovalsGetQueryKey(
+      projectId,
+      params,
+    );
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listApprovalsApiV1BoardsBoardIdApprovalsGet>>
+    Awaited<ReturnType<typeof listApprovalsApiV1ProjectsProjectIdApprovalsGet>>
   > = ({ signal }) =>
-    listApprovalsApiV1BoardsBoardIdApprovalsGet(boardId, params, {
+    listApprovalsApiV1ProjectsProjectIdApprovalsGet(projectId, params, {
       signal,
       ...requestOptions,
     });
@@ -140,34 +145,36 @@ export const getListApprovalsApiV1BoardsBoardIdApprovalsGetQueryOptions = <
   return {
     queryKey,
     queryFn,
-    enabled: !!boardId,
+    enabled: !!projectId,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listApprovalsApiV1BoardsBoardIdApprovalsGet>>,
+    Awaited<ReturnType<typeof listApprovalsApiV1ProjectsProjectIdApprovalsGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListApprovalsApiV1BoardsBoardIdApprovalsGetQueryResult =
+export type ListApprovalsApiV1ProjectsProjectIdApprovalsGetQueryResult =
   NonNullable<
-    Awaited<ReturnType<typeof listApprovalsApiV1BoardsBoardIdApprovalsGet>>
+    Awaited<ReturnType<typeof listApprovalsApiV1ProjectsProjectIdApprovalsGet>>
   >;
-export type ListApprovalsApiV1BoardsBoardIdApprovalsGetQueryError =
+export type ListApprovalsApiV1ProjectsProjectIdApprovalsGetQueryError =
   HTTPValidationError;
 
-export function useListApprovalsApiV1BoardsBoardIdApprovalsGet<
+export function useListApprovalsApiV1ProjectsProjectIdApprovalsGet<
   TData = Awaited<
-    ReturnType<typeof listApprovalsApiV1BoardsBoardIdApprovalsGet>
+    ReturnType<typeof listApprovalsApiV1ProjectsProjectIdApprovalsGet>
   >,
   TError = HTTPValidationError,
 >(
-  boardId: string,
-  params: undefined | ListApprovalsApiV1BoardsBoardIdApprovalsGetParams,
+  projectId: string,
+  params: undefined | ListApprovalsApiV1ProjectsProjectIdApprovalsGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listApprovalsApiV1BoardsBoardIdApprovalsGet>>,
+        Awaited<
+          ReturnType<typeof listApprovalsApiV1ProjectsProjectIdApprovalsGet>
+        >,
         TError,
         TData
       >
@@ -175,11 +182,11 @@ export function useListApprovalsApiV1BoardsBoardIdApprovalsGet<
       Pick<
         DefinedInitialDataOptions<
           Awaited<
-            ReturnType<typeof listApprovalsApiV1BoardsBoardIdApprovalsGet>
+            ReturnType<typeof listApprovalsApiV1ProjectsProjectIdApprovalsGet>
           >,
           TError,
           Awaited<
-            ReturnType<typeof listApprovalsApiV1BoardsBoardIdApprovalsGet>
+            ReturnType<typeof listApprovalsApiV1ProjectsProjectIdApprovalsGet>
           >
         >,
         "initialData"
@@ -190,18 +197,20 @@ export function useListApprovalsApiV1BoardsBoardIdApprovalsGet<
 ): DefinedUseQueryResult<TData, TError> & {
   queryKey: DataTag<QueryKey, TData, TError>;
 };
-export function useListApprovalsApiV1BoardsBoardIdApprovalsGet<
+export function useListApprovalsApiV1ProjectsProjectIdApprovalsGet<
   TData = Awaited<
-    ReturnType<typeof listApprovalsApiV1BoardsBoardIdApprovalsGet>
+    ReturnType<typeof listApprovalsApiV1ProjectsProjectIdApprovalsGet>
   >,
   TError = HTTPValidationError,
 >(
-  boardId: string,
-  params?: ListApprovalsApiV1BoardsBoardIdApprovalsGetParams,
+  projectId: string,
+  params?: ListApprovalsApiV1ProjectsProjectIdApprovalsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listApprovalsApiV1BoardsBoardIdApprovalsGet>>,
+        Awaited<
+          ReturnType<typeof listApprovalsApiV1ProjectsProjectIdApprovalsGet>
+        >,
         TError,
         TData
       >
@@ -209,11 +218,11 @@ export function useListApprovalsApiV1BoardsBoardIdApprovalsGet<
       Pick<
         UndefinedInitialDataOptions<
           Awaited<
-            ReturnType<typeof listApprovalsApiV1BoardsBoardIdApprovalsGet>
+            ReturnType<typeof listApprovalsApiV1ProjectsProjectIdApprovalsGet>
           >,
           TError,
           Awaited<
-            ReturnType<typeof listApprovalsApiV1BoardsBoardIdApprovalsGet>
+            ReturnType<typeof listApprovalsApiV1ProjectsProjectIdApprovalsGet>
           >
         >,
         "initialData"
@@ -224,18 +233,20 @@ export function useListApprovalsApiV1BoardsBoardIdApprovalsGet<
 ): UseQueryResult<TData, TError> & {
   queryKey: DataTag<QueryKey, TData, TError>;
 };
-export function useListApprovalsApiV1BoardsBoardIdApprovalsGet<
+export function useListApprovalsApiV1ProjectsProjectIdApprovalsGet<
   TData = Awaited<
-    ReturnType<typeof listApprovalsApiV1BoardsBoardIdApprovalsGet>
+    ReturnType<typeof listApprovalsApiV1ProjectsProjectIdApprovalsGet>
   >,
   TError = HTTPValidationError,
 >(
-  boardId: string,
-  params?: ListApprovalsApiV1BoardsBoardIdApprovalsGetParams,
+  projectId: string,
+  params?: ListApprovalsApiV1ProjectsProjectIdApprovalsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listApprovalsApiV1BoardsBoardIdApprovalsGet>>,
+        Awaited<
+          ReturnType<typeof listApprovalsApiV1ProjectsProjectIdApprovalsGet>
+        >,
         TError,
         TData
       >
@@ -250,18 +261,20 @@ export function useListApprovalsApiV1BoardsBoardIdApprovalsGet<
  * @summary List Approvals
  */
 
-export function useListApprovalsApiV1BoardsBoardIdApprovalsGet<
+export function useListApprovalsApiV1ProjectsProjectIdApprovalsGet<
   TData = Awaited<
-    ReturnType<typeof listApprovalsApiV1BoardsBoardIdApprovalsGet>
+    ReturnType<typeof listApprovalsApiV1ProjectsProjectIdApprovalsGet>
   >,
   TError = HTTPValidationError,
 >(
-  boardId: string,
-  params?: ListApprovalsApiV1BoardsBoardIdApprovalsGetParams,
+  projectId: string,
+  params?: ListApprovalsApiV1ProjectsProjectIdApprovalsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listApprovalsApiV1BoardsBoardIdApprovalsGet>>,
+        Awaited<
+          ReturnType<typeof listApprovalsApiV1ProjectsProjectIdApprovalsGet>
+        >,
         TError,
         TData
       >
@@ -273,8 +286,8 @@ export function useListApprovalsApiV1BoardsBoardIdApprovalsGet<
   queryKey: DataTag<QueryKey, TData, TError>;
 } {
   const queryOptions =
-    getListApprovalsApiV1BoardsBoardIdApprovalsGetQueryOptions(
-      boardId,
+    getListApprovalsApiV1ProjectsProjectIdApprovalsGetQueryOptions(
+      projectId,
       params,
       options,
     );
@@ -288,45 +301,45 @@ export function useListApprovalsApiV1BoardsBoardIdApprovalsGet<
 }
 
 /**
- * Create an approval for a board.
+ * Create an approval for a project.
  * @summary Create Approval
  */
-export type createApprovalApiV1BoardsBoardIdApprovalsPostResponse200 = {
+export type createApprovalApiV1ProjectsProjectIdApprovalsPostResponse200 = {
   data: ApprovalRead;
   status: 200;
 };
 
-export type createApprovalApiV1BoardsBoardIdApprovalsPostResponse422 = {
+export type createApprovalApiV1ProjectsProjectIdApprovalsPostResponse422 = {
   data: HTTPValidationError;
   status: 422;
 };
 
-export type createApprovalApiV1BoardsBoardIdApprovalsPostResponseSuccess =
-  createApprovalApiV1BoardsBoardIdApprovalsPostResponse200 & {
+export type createApprovalApiV1ProjectsProjectIdApprovalsPostResponseSuccess =
+  createApprovalApiV1ProjectsProjectIdApprovalsPostResponse200 & {
     headers: Headers;
   };
-export type createApprovalApiV1BoardsBoardIdApprovalsPostResponseError =
-  createApprovalApiV1BoardsBoardIdApprovalsPostResponse422 & {
+export type createApprovalApiV1ProjectsProjectIdApprovalsPostResponseError =
+  createApprovalApiV1ProjectsProjectIdApprovalsPostResponse422 & {
     headers: Headers;
   };
 
-export type createApprovalApiV1BoardsBoardIdApprovalsPostResponse =
-  | createApprovalApiV1BoardsBoardIdApprovalsPostResponseSuccess
-  | createApprovalApiV1BoardsBoardIdApprovalsPostResponseError;
+export type createApprovalApiV1ProjectsProjectIdApprovalsPostResponse =
+  | createApprovalApiV1ProjectsProjectIdApprovalsPostResponseSuccess
+  | createApprovalApiV1ProjectsProjectIdApprovalsPostResponseError;
 
-export const getCreateApprovalApiV1BoardsBoardIdApprovalsPostUrl = (
-  boardId: string,
+export const getCreateApprovalApiV1ProjectsProjectIdApprovalsPostUrl = (
+  projectId: string,
 ) => {
-  return `/api/v1/boards/${boardId}/approvals`;
+  return `/api/v1/projects/${projectId}/approvals`;
 };
 
-export const createApprovalApiV1BoardsBoardIdApprovalsPost = async (
-  boardId: string,
+export const createApprovalApiV1ProjectsProjectIdApprovalsPost = async (
+  projectId: string,
   approvalCreate: ApprovalCreate,
   options?: RequestInit,
-): Promise<createApprovalApiV1BoardsBoardIdApprovalsPostResponse> => {
-  return customFetch<createApprovalApiV1BoardsBoardIdApprovalsPostResponse>(
-    getCreateApprovalApiV1BoardsBoardIdApprovalsPostUrl(boardId),
+): Promise<createApprovalApiV1ProjectsProjectIdApprovalsPostResponse> => {
+  return customFetch<createApprovalApiV1ProjectsProjectIdApprovalsPostResponse>(
+    getCreateApprovalApiV1ProjectsProjectIdApprovalsPostUrl(projectId),
     {
       ...options,
       method: "POST",
@@ -336,115 +349,127 @@ export const createApprovalApiV1BoardsBoardIdApprovalsPost = async (
   );
 };
 
-export const getCreateApprovalApiV1BoardsBoardIdApprovalsPostMutationOptions = <
-  TError = HTTPValidationError,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createApprovalApiV1BoardsBoardIdApprovalsPost>>,
+export const getCreateApprovalApiV1ProjectsProjectIdApprovalsPostMutationOptions =
+  <TError = HTTPValidationError, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof createApprovalApiV1ProjectsProjectIdApprovalsPost>
+      >,
+      TError,
+      { projectId: string; data: ApprovalCreate },
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof createApprovalApiV1ProjectsProjectIdApprovalsPost>
+    >,
     TError,
-    { boardId: string; data: ApprovalCreate },
+    { projectId: string; data: ApprovalCreate },
     TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof createApprovalApiV1BoardsBoardIdApprovalsPost>>,
-  TError,
-  { boardId: string; data: ApprovalCreate },
-  TContext
-> => {
-  const mutationKey = ["createApprovalApiV1BoardsBoardIdApprovalsPost"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation &&
-      "mutationKey" in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
+  > => {
+    const mutationKey = ["createApprovalApiV1ProjectsProjectIdApprovalsPost"];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation &&
+        "mutationKey" in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
 
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createApprovalApiV1BoardsBoardIdApprovalsPost>>,
-    { boardId: string; data: ApprovalCreate }
-  > = (props) => {
-    const { boardId, data } = props ?? {};
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof createApprovalApiV1ProjectsProjectIdApprovalsPost>
+      >,
+      { projectId: string; data: ApprovalCreate }
+    > = (props) => {
+      const { projectId, data } = props ?? {};
 
-    return createApprovalApiV1BoardsBoardIdApprovalsPost(
-      boardId,
-      data,
-      requestOptions,
-    );
+      return createApprovalApiV1ProjectsProjectIdApprovalsPost(
+        projectId,
+        data,
+        requestOptions,
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
   };
 
-  return { mutationFn, ...mutationOptions };
-};
-
-export type CreateApprovalApiV1BoardsBoardIdApprovalsPostMutationResult =
+export type CreateApprovalApiV1ProjectsProjectIdApprovalsPostMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof createApprovalApiV1BoardsBoardIdApprovalsPost>>
+    Awaited<
+      ReturnType<typeof createApprovalApiV1ProjectsProjectIdApprovalsPost>
+    >
   >;
-export type CreateApprovalApiV1BoardsBoardIdApprovalsPostMutationBody =
+export type CreateApprovalApiV1ProjectsProjectIdApprovalsPostMutationBody =
   ApprovalCreate;
-export type CreateApprovalApiV1BoardsBoardIdApprovalsPostMutationError =
+export type CreateApprovalApiV1ProjectsProjectIdApprovalsPostMutationError =
   HTTPValidationError;
 
 /**
  * @summary Create Approval
  */
-export const useCreateApprovalApiV1BoardsBoardIdApprovalsPost = <
+export const useCreateApprovalApiV1ProjectsProjectIdApprovalsPost = <
   TError = HTTPValidationError,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createApprovalApiV1BoardsBoardIdApprovalsPost>>,
+      Awaited<
+        ReturnType<typeof createApprovalApiV1ProjectsProjectIdApprovalsPost>
+      >,
       TError,
-      { boardId: string; data: ApprovalCreate },
+      { projectId: string; data: ApprovalCreate },
       TContext
     >;
     request?: SecondParameter<typeof customFetch>;
   },
   queryClient?: QueryClient,
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createApprovalApiV1BoardsBoardIdApprovalsPost>>,
+  Awaited<ReturnType<typeof createApprovalApiV1ProjectsProjectIdApprovalsPost>>,
   TError,
-  { boardId: string; data: ApprovalCreate },
+  { projectId: string; data: ApprovalCreate },
   TContext
 > => {
   return useMutation(
-    getCreateApprovalApiV1BoardsBoardIdApprovalsPostMutationOptions(options),
+    getCreateApprovalApiV1ProjectsProjectIdApprovalsPostMutationOptions(
+      options,
+    ),
     queryClient,
   );
 };
 /**
- * Stream approval updates for a board using server-sent events.
+ * Stream approval updates for a project using server-sent events.
  * @summary Stream Approvals
  */
-export type streamApprovalsApiV1BoardsBoardIdApprovalsStreamGetResponse200 = {
-  data: unknown;
-  status: 200;
-};
-
-export type streamApprovalsApiV1BoardsBoardIdApprovalsStreamGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type streamApprovalsApiV1BoardsBoardIdApprovalsStreamGetResponseSuccess =
-  streamApprovalsApiV1BoardsBoardIdApprovalsStreamGetResponse200 & {
-    headers: Headers;
-  };
-export type streamApprovalsApiV1BoardsBoardIdApprovalsStreamGetResponseError =
-  streamApprovalsApiV1BoardsBoardIdApprovalsStreamGetResponse422 & {
-    headers: Headers;
+export type streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetResponse200 =
+  {
+    data: unknown;
+    status: 200;
   };
 
-export type streamApprovalsApiV1BoardsBoardIdApprovalsStreamGetResponse =
-  | streamApprovalsApiV1BoardsBoardIdApprovalsStreamGetResponseSuccess
-  | streamApprovalsApiV1BoardsBoardIdApprovalsStreamGetResponseError;
+export type streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetResponse422 =
+  {
+    data: HTTPValidationError;
+    status: 422;
+  };
 
-export const getStreamApprovalsApiV1BoardsBoardIdApprovalsStreamGetUrl = (
-  boardId: string,
-  params?: StreamApprovalsApiV1BoardsBoardIdApprovalsStreamGetParams,
+export type streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetResponseSuccess =
+  streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetResponse200 & {
+    headers: Headers;
+  };
+export type streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetResponseError =
+  streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetResponse422 & {
+    headers: Headers;
+  };
+
+export type streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetResponse =
+  | streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetResponseSuccess
+  | streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetResponseError;
+
+export const getStreamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetUrl = (
+  projectId: string,
+  params?: StreamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetParams,
 ) => {
   const normalizedParams = new URLSearchParams();
 
@@ -457,17 +482,20 @@ export const getStreamApprovalsApiV1BoardsBoardIdApprovalsStreamGetUrl = (
   const stringifiedParams = normalizedParams.toString();
 
   return stringifiedParams.length > 0
-    ? `/api/v1/boards/${boardId}/approvals/stream?${stringifiedParams}`
-    : `/api/v1/boards/${boardId}/approvals/stream`;
+    ? `/api/v1/projects/${projectId}/approvals/stream?${stringifiedParams}`
+    : `/api/v1/projects/${projectId}/approvals/stream`;
 };
 
-export const streamApprovalsApiV1BoardsBoardIdApprovalsStreamGet = async (
-  boardId: string,
-  params?: StreamApprovalsApiV1BoardsBoardIdApprovalsStreamGetParams,
+export const streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGet = async (
+  projectId: string,
+  params?: StreamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetParams,
   options?: RequestInit,
-): Promise<streamApprovalsApiV1BoardsBoardIdApprovalsStreamGetResponse> => {
-  return customFetch<streamApprovalsApiV1BoardsBoardIdApprovalsStreamGetResponse>(
-    getStreamApprovalsApiV1BoardsBoardIdApprovalsStreamGetUrl(boardId, params),
+): Promise<streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetResponse> => {
+  return customFetch<streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetResponse>(
+    getStreamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetUrl(
+      projectId,
+      params,
+    ),
     {
       ...options,
       method: "GET",
@@ -475,31 +503,32 @@ export const streamApprovalsApiV1BoardsBoardIdApprovalsStreamGet = async (
   );
 };
 
-export const getStreamApprovalsApiV1BoardsBoardIdApprovalsStreamGetQueryKey = (
-  boardId: string,
-  params?: StreamApprovalsApiV1BoardsBoardIdApprovalsStreamGetParams,
-) => {
-  return [
-    `/api/v1/boards/${boardId}/approvals/stream`,
-    ...(params ? [params] : []),
-  ] as const;
-};
+export const getStreamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetQueryKey =
+  (
+    projectId: string,
+    params?: StreamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetParams,
+  ) => {
+    return [
+      `/api/v1/projects/${projectId}/approvals/stream`,
+      ...(params ? [params] : []),
+    ] as const;
+  };
 
-export const getStreamApprovalsApiV1BoardsBoardIdApprovalsStreamGetQueryOptions =
+export const getStreamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetQueryOptions =
   <
     TData = Awaited<
-      ReturnType<typeof streamApprovalsApiV1BoardsBoardIdApprovalsStreamGet>
+      ReturnType<typeof streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGet>
     >,
     TError = HTTPValidationError,
   >(
-    boardId: string,
-    params?: StreamApprovalsApiV1BoardsBoardIdApprovalsStreamGetParams,
+    projectId: string,
+    params?: StreamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetParams,
     options?: {
       query?: Partial<
         UseQueryOptions<
           Awaited<
             ReturnType<
-              typeof streamApprovalsApiV1BoardsBoardIdApprovalsStreamGet
+              typeof streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGet
             >
           >,
           TError,
@@ -513,57 +542,66 @@ export const getStreamApprovalsApiV1BoardsBoardIdApprovalsStreamGetQueryOptions 
 
     const queryKey =
       queryOptions?.queryKey ??
-      getStreamApprovalsApiV1BoardsBoardIdApprovalsStreamGetQueryKey(
-        boardId,
+      getStreamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetQueryKey(
+        projectId,
         params,
       );
 
     const queryFn: QueryFunction<
       Awaited<
-        ReturnType<typeof streamApprovalsApiV1BoardsBoardIdApprovalsStreamGet>
+        ReturnType<
+          typeof streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGet
+        >
       >
     > = ({ signal }) =>
-      streamApprovalsApiV1BoardsBoardIdApprovalsStreamGet(boardId, params, {
-        signal,
-        ...requestOptions,
-      });
+      streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGet(
+        projectId,
+        params,
+        { signal, ...requestOptions },
+      );
 
     return {
       queryKey,
       queryFn,
-      enabled: !!boardId,
+      enabled: !!projectId,
       ...queryOptions,
     } as UseQueryOptions<
       Awaited<
-        ReturnType<typeof streamApprovalsApiV1BoardsBoardIdApprovalsStreamGet>
+        ReturnType<
+          typeof streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGet
+        >
       >,
       TError,
       TData
     > & { queryKey: DataTag<QueryKey, TData, TError> };
   };
 
-export type StreamApprovalsApiV1BoardsBoardIdApprovalsStreamGetQueryResult =
+export type StreamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetQueryResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof streamApprovalsApiV1BoardsBoardIdApprovalsStreamGet>
+      ReturnType<typeof streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGet>
     >
   >;
-export type StreamApprovalsApiV1BoardsBoardIdApprovalsStreamGetQueryError =
+export type StreamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetQueryError =
   HTTPValidationError;
 
-export function useStreamApprovalsApiV1BoardsBoardIdApprovalsStreamGet<
+export function useStreamApprovalsApiV1ProjectsProjectIdApprovalsStreamGet<
   TData = Awaited<
-    ReturnType<typeof streamApprovalsApiV1BoardsBoardIdApprovalsStreamGet>
+    ReturnType<typeof streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGet>
   >,
   TError = HTTPValidationError,
 >(
-  boardId: string,
-  params: undefined | StreamApprovalsApiV1BoardsBoardIdApprovalsStreamGetParams,
+  projectId: string,
+  params:
+    | undefined
+    | StreamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof streamApprovalsApiV1BoardsBoardIdApprovalsStreamGet>
+          ReturnType<
+            typeof streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGet
+          >
         >,
         TError,
         TData
@@ -573,13 +611,13 @@ export function useStreamApprovalsApiV1BoardsBoardIdApprovalsStreamGet<
         DefinedInitialDataOptions<
           Awaited<
             ReturnType<
-              typeof streamApprovalsApiV1BoardsBoardIdApprovalsStreamGet
+              typeof streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGet
             >
           >,
           TError,
           Awaited<
             ReturnType<
-              typeof streamApprovalsApiV1BoardsBoardIdApprovalsStreamGet
+              typeof streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGet
             >
           >
         >,
@@ -591,19 +629,21 @@ export function useStreamApprovalsApiV1BoardsBoardIdApprovalsStreamGet<
 ): DefinedUseQueryResult<TData, TError> & {
   queryKey: DataTag<QueryKey, TData, TError>;
 };
-export function useStreamApprovalsApiV1BoardsBoardIdApprovalsStreamGet<
+export function useStreamApprovalsApiV1ProjectsProjectIdApprovalsStreamGet<
   TData = Awaited<
-    ReturnType<typeof streamApprovalsApiV1BoardsBoardIdApprovalsStreamGet>
+    ReturnType<typeof streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGet>
   >,
   TError = HTTPValidationError,
 >(
-  boardId: string,
-  params?: StreamApprovalsApiV1BoardsBoardIdApprovalsStreamGetParams,
+  projectId: string,
+  params?: StreamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof streamApprovalsApiV1BoardsBoardIdApprovalsStreamGet>
+          ReturnType<
+            typeof streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGet
+          >
         >,
         TError,
         TData
@@ -613,13 +653,13 @@ export function useStreamApprovalsApiV1BoardsBoardIdApprovalsStreamGet<
         UndefinedInitialDataOptions<
           Awaited<
             ReturnType<
-              typeof streamApprovalsApiV1BoardsBoardIdApprovalsStreamGet
+              typeof streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGet
             >
           >,
           TError,
           Awaited<
             ReturnType<
-              typeof streamApprovalsApiV1BoardsBoardIdApprovalsStreamGet
+              typeof streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGet
             >
           >
         >,
@@ -631,19 +671,21 @@ export function useStreamApprovalsApiV1BoardsBoardIdApprovalsStreamGet<
 ): UseQueryResult<TData, TError> & {
   queryKey: DataTag<QueryKey, TData, TError>;
 };
-export function useStreamApprovalsApiV1BoardsBoardIdApprovalsStreamGet<
+export function useStreamApprovalsApiV1ProjectsProjectIdApprovalsStreamGet<
   TData = Awaited<
-    ReturnType<typeof streamApprovalsApiV1BoardsBoardIdApprovalsStreamGet>
+    ReturnType<typeof streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGet>
   >,
   TError = HTTPValidationError,
 >(
-  boardId: string,
-  params?: StreamApprovalsApiV1BoardsBoardIdApprovalsStreamGetParams,
+  projectId: string,
+  params?: StreamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof streamApprovalsApiV1BoardsBoardIdApprovalsStreamGet>
+          ReturnType<
+            typeof streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGet
+          >
         >,
         TError,
         TData
@@ -659,19 +701,21 @@ export function useStreamApprovalsApiV1BoardsBoardIdApprovalsStreamGet<
  * @summary Stream Approvals
  */
 
-export function useStreamApprovalsApiV1BoardsBoardIdApprovalsStreamGet<
+export function useStreamApprovalsApiV1ProjectsProjectIdApprovalsStreamGet<
   TData = Awaited<
-    ReturnType<typeof streamApprovalsApiV1BoardsBoardIdApprovalsStreamGet>
+    ReturnType<typeof streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGet>
   >,
   TError = HTTPValidationError,
 >(
-  boardId: string,
-  params?: StreamApprovalsApiV1BoardsBoardIdApprovalsStreamGetParams,
+  projectId: string,
+  params?: StreamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof streamApprovalsApiV1BoardsBoardIdApprovalsStreamGet>
+          ReturnType<
+            typeof streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGet
+          >
         >,
         TError,
         TData
@@ -684,8 +728,8 @@ export function useStreamApprovalsApiV1BoardsBoardIdApprovalsStreamGet<
   queryKey: DataTag<QueryKey, TData, TError>;
 } {
   const queryOptions =
-    getStreamApprovalsApiV1BoardsBoardIdApprovalsStreamGetQueryOptions(
-      boardId,
+    getStreamApprovalsApiV1ProjectsProjectIdApprovalsStreamGetQueryOptions(
+      projectId,
       params,
       options,
     );
@@ -702,83 +746,83 @@ export function useStreamApprovalsApiV1BoardsBoardIdApprovalsStreamGet<
  * Update an approval's status and resolution timestamp.
  * @summary Update Approval
  */
-export type updateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatchResponse200 =
+export type updateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatchResponse200 =
   {
     data: ApprovalRead;
     status: 200;
   };
 
-export type updateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatchResponse422 =
+export type updateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatchResponse422 =
   {
     data: HTTPValidationError;
     status: 422;
   };
 
-export type updateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatchResponseSuccess =
-  updateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatchResponse200 & {
+export type updateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatchResponseSuccess =
+  updateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatchResponse200 & {
     headers: Headers;
   };
-export type updateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatchResponseError =
-  updateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatchResponse422 & {
+export type updateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatchResponseError =
+  updateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatchResponse422 & {
     headers: Headers;
   };
 
-export type updateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatchResponse =
-  | updateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatchResponseSuccess
-  | updateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatchResponseError;
+export type updateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatchResponse =
 
-export const getUpdateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatchUrl = (
-  boardId: string,
-  approvalId: string,
-) => {
-  return `/api/v1/boards/${boardId}/approvals/${approvalId}`;
-};
+    | updateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatchResponseSuccess
+    | updateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatchResponseError;
 
-export const updateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatch = async (
-  boardId: string,
-  approvalId: string,
-  approvalUpdate: ApprovalUpdate,
-  options?: RequestInit,
-): Promise<updateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatchResponse> => {
-  return customFetch<updateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatchResponse>(
-    getUpdateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatchUrl(
-      boardId,
-      approvalId,
-    ),
-    {
-      ...options,
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", ...options?.headers },
-      body: JSON.stringify(approvalUpdate),
-    },
-  );
-};
+export const getUpdateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatchUrl =
+  (projectId: string, approvalId: string) => {
+    return `/api/v1/projects/${projectId}/approvals/${approvalId}`;
+  };
 
-export const getUpdateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatchMutationOptions =
+export const updateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatch =
+  async (
+    projectId: string,
+    approvalId: string,
+    approvalUpdate: ApprovalUpdate,
+    options?: RequestInit,
+  ): Promise<updateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatchResponse> => {
+    return customFetch<updateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatchResponse>(
+      getUpdateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatchUrl(
+        projectId,
+        approvalId,
+      ),
+      {
+        ...options,
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...options?.headers },
+        body: JSON.stringify(approvalUpdate),
+      },
+    );
+  };
+
+export const getUpdateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatchMutationOptions =
   <TError = HTTPValidationError, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof updateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatch
+          typeof updateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatch
         >
       >,
       TError,
-      { boardId: string; approvalId: string; data: ApprovalUpdate },
+      { projectId: string; approvalId: string; data: ApprovalUpdate },
       TContext
     >;
     request?: SecondParameter<typeof customFetch>;
   }): UseMutationOptions<
     Awaited<
       ReturnType<
-        typeof updateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatch
+        typeof updateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatch
       >
     >,
     TError,
-    { boardId: string; approvalId: string; data: ApprovalUpdate },
+    { projectId: string; approvalId: string; data: ApprovalUpdate },
     TContext
   > => {
     const mutationKey = [
-      "updateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatch",
+      "updateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatch",
     ];
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation &&
@@ -791,15 +835,15 @@ export const getUpdateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatchMutation
     const mutationFn: MutationFunction<
       Awaited<
         ReturnType<
-          typeof updateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatch
+          typeof updateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatch
         >
       >,
-      { boardId: string; approvalId: string; data: ApprovalUpdate }
+      { projectId: string; approvalId: string; data: ApprovalUpdate }
     > = (props) => {
-      const { boardId, approvalId, data } = props ?? {};
+      const { projectId, approvalId, data } = props ?? {};
 
-      return updateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatch(
-        boardId,
+      return updateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatch(
+        projectId,
         approvalId,
         data,
         requestOptions,
@@ -809,23 +853,23 @@ export const getUpdateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatchMutation
     return { mutationFn, ...mutationOptions };
   };
 
-export type UpdateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatchMutationResult =
+export type UpdateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatchMutationResult =
   NonNullable<
     Awaited<
       ReturnType<
-        typeof updateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatch
+        typeof updateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatch
       >
     >
   >;
-export type UpdateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatchMutationBody =
+export type UpdateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatchMutationBody =
   ApprovalUpdate;
-export type UpdateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatchMutationError =
+export type UpdateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatchMutationError =
   HTTPValidationError;
 
 /**
  * @summary Update Approval
  */
-export const useUpdateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatch = <
+export const useUpdateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatch = <
   TError = HTTPValidationError,
   TContext = unknown,
 >(
@@ -833,11 +877,11 @@ export const useUpdateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatch = <
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof updateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatch
+          typeof updateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatch
         >
       >,
       TError,
-      { boardId: string; approvalId: string; data: ApprovalUpdate },
+      { projectId: string; approvalId: string; data: ApprovalUpdate },
       TContext
     >;
     request?: SecondParameter<typeof customFetch>;
@@ -845,14 +889,16 @@ export const useUpdateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatch = <
   queryClient?: QueryClient,
 ): UseMutationResult<
   Awaited<
-    ReturnType<typeof updateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatch>
+    ReturnType<
+      typeof updateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatch
+    >
   >,
   TError,
-  { boardId: string; approvalId: string; data: ApprovalUpdate },
+  { projectId: string; approvalId: string; data: ApprovalUpdate },
   TContext
 > => {
   return useMutation(
-    getUpdateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatchMutationOptions(
+    getUpdateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatchMutationOptions(
       options,
     ),
     queryClient,

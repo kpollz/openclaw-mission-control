@@ -95,7 +95,7 @@ export default function GatewaysPage() {
           forceRedirectUrl: "/gateways",
         }}
         title="Gateways"
-        description="Manage OpenClaw gateway connections used by boards"
+        description="Manage OpenClaw gateway connections used by projects"
         headerActions={
           isAdmin && gateways.length > 0 ? (
             <Link
@@ -125,7 +125,7 @@ export default function GatewaysPage() {
             emptyState={{
               title: "No gateways yet",
               description:
-                "Create your first gateway to connect boards and start managing your OpenClaw connections.",
+                "Create your first gateway to connect projects and start managing your OpenClaw connections.",
               actionHref: "/gateways/new",
               actionLabel: "Create your first gateway",
             }}
@@ -145,7 +145,7 @@ export default function GatewaysPage() {
         title="Delete gateway?"
         description={
           <>
-            This removes the gateway connection from Mission Control. Boards
+            This removes the gateway connection from Mission Control. Projects
             using it will need a new gateway assigned.
           </>
         }

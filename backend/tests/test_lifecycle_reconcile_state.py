@@ -6,13 +6,13 @@ from __future__ import annotations
 from datetime import timedelta
 from uuid import uuid4
 
-from app.core.time import utcnow
-from app.models.agents import Agent
-from app.services.openclaw.constants import (
+from app.shared.time import utcnow
+from app.infrastructure.models.agents import Agent
+from app.infrastructure.gateway.constants import (
     CHECKIN_DEADLINE_AFTER_WAKE,
     MAX_WAKE_ATTEMPTS_WITHOUT_CHECKIN,
 )
-from app.services.openclaw.lifecycle_reconcile import _has_checked_in_since_wake
+from app.application.use_cases.agents.reconcile import _has_checked_in_since_wake
 
 
 def _agent(*, last_seen_offset_s: int | None, last_wake_offset_s: int | None) -> Agent:

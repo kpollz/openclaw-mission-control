@@ -6,13 +6,13 @@
  */
 
 /**
- * Single pending approval item for cross-board dashboard listing.
+ * Single pending approval item for cross-project dashboard listing.
  */
 export interface DashboardPendingApproval {
-  action_type: string;
   approval_id: string;
-  board_id: string;
-  board_name: string;
+  project_id: string;
+  project_name: string;
+  action_type: string;
   confidence: number;
   created_at: string;
   task_title?: string | null;

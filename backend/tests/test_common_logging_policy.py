@@ -5,11 +5,14 @@ import logging
 import re
 from pathlib import Path
 
-from app.core.logging import TRACE_LEVEL, AppLogger, get_logger
+from app.shared.logging import TRACE_LEVEL, AppLogger, get_logger
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 APP_ROOT = BACKEND_ROOT / "app"
-COMMON_LOGGER_FILE = APP_ROOT / "core" / "logging.py"
+COMMON_LOGGER_FILES = frozenset({
+    APP_ROOT / "core" / "logging.py",
+    APP_ROOT / "shared" / "logging.py",
+})
 
 
 def _iter_app_python_files() -> list[Path]:
@@ -58,7 +61,7 @@ def test_backend_app_uses_common_logger() -> None:
     offenders: list[str] = []
 
     for path in _iter_app_python_files():
-        if path == COMMON_LOGGER_FILE:
+        if path in COMMON_LOGGER_FILES:
             continue
 
         text = path.read_text(encoding="utf-8")
@@ -77,7 +80,7 @@ def test_module_level_loggers_bind_via_get_logger() -> None:
     assignment_pattern = re.compile(r"^\s*logger\s*=\s*(.+)$", flags=re.MULTILINE)
 
     for path in _iter_app_python_files():
-        if path == COMMON_LOGGER_FILE:
+        if path in COMMON_LOGGER_FILES:
             continue
         text = path.read_text(encoding="utf-8")
         rel = path.relative_to(BACKEND_ROOT).as_posix()
@@ -105,7 +108,7 @@ def test_backend_app_has_all_log_levels_in_use() -> None:
     merged_source = "\n".join(
         path.read_text(encoding="utf-8")
         for path in _iter_app_python_files()
-        if path != COMMON_LOGGER_FILE
+        if path not in COMMON_LOGGER_FILES
     )
 
     missing = [

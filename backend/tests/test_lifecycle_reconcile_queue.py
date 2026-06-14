@@ -8,14 +8,14 @@ from uuid import uuid4
 
 import pytest
 
-from app.core.time import utcnow
-from app.services.openclaw.lifecycle_queue import (
+from app.shared.time import utcnow
+from app.infrastructure.queue.lifecycle_queue import (
     QueuedAgentLifecycleReconcile,
     decode_lifecycle_task,
     defer_lifecycle_reconcile,
     enqueue_lifecycle_reconcile,
 )
-from app.services.queue import QueuedTask
+from app.infrastructure.queue.redis_queue import QueuedTask
 
 
 def test_enqueue_lifecycle_reconcile_uses_delayed_enqueue(
@@ -37,14 +37,14 @@ def test_enqueue_lifecycle_reconcile_uses_delayed_enqueue(
         return True
 
     monkeypatch.setattr(
-        "app.services.openclaw.lifecycle_queue.enqueue_task_with_delay",
+        "app.infrastructure.queue.lifecycle_queue.enqueue_task_with_delay",
         _fake_enqueue_with_delay,
     )
 
     payload = QueuedAgentLifecycleReconcile(
         agent_id=uuid4(),
         gateway_id=uuid4(),
-        board_id=uuid4(),
+        project_id=uuid4(),
         generation=7,
         checkin_deadline_at=utcnow() + timedelta(seconds=30),
         attempts=0,
@@ -76,7 +76,7 @@ def test_defer_lifecycle_reconcile_keeps_attempt_count(
         return True
 
     monkeypatch.setattr(
-        "app.services.openclaw.lifecycle_queue.enqueue_task_with_delay",
+        "app.infrastructure.queue.lifecycle_queue.enqueue_task_with_delay",
         _fake_enqueue_with_delay,
     )
     deadline = utcnow() + timedelta(minutes=1)
@@ -85,7 +85,7 @@ def test_defer_lifecycle_reconcile_keeps_attempt_count(
         payload={
             "agent_id": str(uuid4()),
             "gateway_id": str(uuid4()),
-            "board_id": None,
+            "project_id": None,
             "generation": 3,
             "checkin_deadline_at": deadline.isoformat(),
         },
@@ -103,13 +103,13 @@ def test_decode_lifecycle_task_roundtrip() -> None:
     deadline = utcnow() + timedelta(minutes=3)
     agent_id = uuid4()
     gateway_id = uuid4()
-    board_id = uuid4()
+    project_id = uuid4()
     task = QueuedTask(
         task_type="agent_lifecycle_reconcile",
         payload={
             "agent_id": str(agent_id),
             "gateway_id": str(gateway_id),
-            "board_id": str(board_id),
+            "project_id": str(project_id),
             "generation": 5,
             "checkin_deadline_at": deadline.isoformat(),
         },
@@ -120,7 +120,7 @@ def test_decode_lifecycle_task_roundtrip() -> None:
     decoded = decode_lifecycle_task(task)
     assert decoded.agent_id == agent_id
     assert decoded.gateway_id == gateway_id
-    assert decoded.board_id == board_id
+    assert decoded.project_id == project_id
     assert decoded.generation == 5
     assert decoded.checkin_deadline_at == deadline
     assert decoded.attempts == 1

@@ -1,46 +1,29 @@
 "use client";
 
-import { ClerkProvider } from "@clerk/nextjs";
 import { useEffect, type ReactNode } from "react";
 
-import { isLikelyValidClerkPublishableKey } from "@/auth/clerkKey";
 import {
-  clearLocalAuthToken,
-  getLocalAuthToken,
-  isLocalAuthMode,
-} from "@/auth/localAuth";
-import { LocalAuthLogin } from "@/components/organisms/LocalAuthLogin";
+  getPasswordAccessToken,
+  scheduleTokenRefresh,
+} from "@/auth/passwordAuth";
+import { PasswordAuthLogin } from "@/components/organisms/PasswordAuthLogin";
+import { getApiBaseUrl } from "@/lib/api-base";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const localMode = isLocalAuthMode();
-
+  // Kick off token auto-refresh when we have a token.
   useEffect(() => {
-    if (!localMode) {
-      clearLocalAuthToken();
+    if (getPasswordAccessToken()) {
+      try {
+        scheduleTokenRefresh(getApiBaseUrl());
+      } catch {
+        // baseUrl not resolvable — skip scheduling.
+      }
     }
-  }, [localMode]);
+  }, []);
 
-  if (localMode) {
-    if (!getLocalAuthToken()) {
-      return <LocalAuthLogin />;
-    }
-    return <>{children}</>;
+  if (!getPasswordAccessToken()) {
+    return <PasswordAuthLogin />;
   }
 
-  const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
-  const afterSignOutUrl =
-    process.env.NEXT_PUBLIC_CLERK_AFTER_SIGN_OUT_URL ?? "/";
-
-  if (!isLikelyValidClerkPublishableKey(publishableKey)) {
-    return <>{children}</>;
-  }
-
-  return (
-    <ClerkProvider
-      publishableKey={publishableKey}
-      afterSignOutUrl={afterSignOutUrl}
-    >
-      {children}
-    </ClerkProvider>
-  );
+  return <>{children}</>;
 }

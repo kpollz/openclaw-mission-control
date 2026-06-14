@@ -12,11 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.users import router as users_router
-from app.core import auth as auth_module
-from app.core.auth_mode import AuthMode
-from app.core.config import settings
-from app.db.session import get_session
+from app.presentation.api.users import router as users_router
+from app.infrastructure.auth import clerk_local_auth as auth_module
+from app.shared.auth_mode import AuthMode
+from app.shared.config import settings
+from app.infrastructure.database.engine import get_session
 
 
 async def _make_engine() -> AsyncEngine:

@@ -9,16 +9,17 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api import tasks as tasks_api
-from app.api.deps import ActorContext
-from app.models.agents import Agent
-from app.models.approval_task_links import ApprovalTaskLink
-from app.models.approvals import Approval
-from app.models.boards import Board
-from app.models.gateways import Gateway
-from app.models.organizations import Organization
-from app.models.tasks import Task
-from app.schemas.tasks import TaskRead, TaskUpdate
+from app.presentation.api import tasks as tasks_api
+from app.presentation.api.deps import ActorContext
+from app.infrastructure.models.agents import Agent
+from app.infrastructure.models.approval_task_links import ApprovalTaskLink
+from app.infrastructure.models.approvals import Approval
+from app.infrastructure.models.projects import Project
+from app.infrastructure.models.gateways import Gateway
+from app.infrastructure.models.organizations import Organization
+from app.infrastructure.models.task_custom_fields import ProjectTaskCustomField, TaskCustomFieldDefinition
+from app.infrastructure.models.tasks import Task
+from app.presentation.schemas.tasks import TaskRead, TaskUpdate
 
 
 async def _make_engine() -> AsyncEngine:
@@ -32,7 +33,7 @@ async def _make_session(engine: AsyncEngine) -> AsyncSession:
     return AsyncSession(engine, expire_on_commit=False)
 
 
-async def _seed_board_task_and_agent(
+async def _seed_project_task_and_agent(
     session: AsyncSession,
     *,
     task_status: str = "review",
@@ -40,8 +41,8 @@ async def _seed_board_task_and_agent(
     require_review_before_done: bool = False,
     block_status_changes_with_pending_approval: bool = False,
     only_lead_can_change_status: bool = False,
-    agent_is_board_lead: bool = False,
-) -> tuple[Board, Task, Agent]:
+    agent_is_project_lead: bool = False,
+) -> tuple[Project, Task, Agent]:
     organization_id = uuid4()
     gateway = Gateway(
         id=uuid4(),
@@ -50,12 +51,12 @@ async def _seed_board_task_and_agent(
         url="https://gateway.local",
         workspace_root="/tmp/workspace",
     )
-    board = Board(
+    project = Project(
         id=uuid4(),
         organization_id=organization_id,
         gateway_id=gateway.id,
-        name="board",
-        slug=f"board-{uuid4()}",
+        name="project",
+        slug=f"project-{uuid4()}",
         require_approval_for_done=require_approval_for_done,
         require_review_before_done=require_review_before_done,
         block_status_changes_with_pending_approval=block_status_changes_with_pending_approval,
@@ -63,15 +64,15 @@ async def _seed_board_task_and_agent(
     )
     agent = Agent(
         id=uuid4(),
-        board_id=board.id,
+        project_id=project.id,
         gateway_id=gateway.id,
         name="agent",
         status="online",
-        is_board_lead=agent_is_board_lead,
+        is_project_lead=agent_is_project_lead,
     )
     task = Task(
         id=uuid4(),
-        board_id=board.id,
+        project_id=project.id,
         title="Task",
         status=task_status,
         assigned_agent_id=agent.id,
@@ -79,11 +80,11 @@ async def _seed_board_task_and_agent(
 
     session.add(Organization(id=organization_id, name=f"org-{organization_id}"))
     session.add(gateway)
-    session.add(board)
+    session.add(project)
     session.add(task)
     session.add(agent)
     await session.commit()
-    return board, task, agent
+    return project, task, agent
 
 
 async def _update_task_to_done(
@@ -120,11 +121,11 @@ async def test_update_task_rejects_done_without_approved_linked_approval() -> No
     engine = await _make_engine()
     try:
         async with await _make_session(engine) as session:
-            board, task, agent = await _seed_board_task_and_agent(session)
+            project, task, agent = await _seed_project_task_and_agent(session)
             session.add(
                 Approval(
                     id=uuid4(),
-                    board_id=board.id,
+                    project_id=project.id,
                     task_id=task.id,
                     action_type="task.review",
                     confidence=65,
@@ -151,11 +152,11 @@ async def test_update_task_allows_done_with_approved_primary_task_approval() -> 
     engine = await _make_engine()
     try:
         async with await _make_session(engine) as session:
-            board, task, agent = await _seed_board_task_and_agent(session)
+            project, task, agent = await _seed_project_task_and_agent(session)
             session.add(
                 Approval(
                     id=uuid4(),
-                    board_id=board.id,
+                    project_id=project.id,
                     task_id=task.id,
                     action_type="task.review",
                     confidence=92,
@@ -182,15 +183,15 @@ async def test_update_task_allows_done_with_approved_multi_task_link() -> None:
     engine = await _make_engine()
     try:
         async with await _make_session(engine) as session:
-            board, task, agent = await _seed_board_task_and_agent(session)
+            project, task, agent = await _seed_project_task_and_agent(session)
             primary_task_id = uuid4()
-            session.add(Task(id=primary_task_id, board_id=board.id, title="Primary"))
+            session.add(Task(id=primary_task_id, project_id=project.id, title="Primary"))
 
             approval_id = uuid4()
             session.add(
                 Approval(
                     id=approval_id,
-                    board_id=board.id,
+                    project_id=project.id,
                     task_id=primary_task_id,
                     action_type="task.batch_review",
                     confidence=88,
@@ -215,11 +216,11 @@ async def test_update_task_allows_done_with_approved_multi_task_link() -> None:
 
 
 @pytest.mark.asyncio
-async def test_update_task_allows_done_without_approval_when_board_toggle_disabled() -> None:
+async def test_update_task_allows_done_without_approval_when_project_toggle_disabled() -> None:
     engine = await _make_engine()
     try:
         async with await _make_session(engine) as session:
-            _board, task, agent = await _seed_board_task_and_agent(
+            _project, task, agent = await _seed_project_task_and_agent(
                 session,
                 require_approval_for_done=False,
             )
@@ -237,11 +238,63 @@ async def test_update_task_allows_done_without_approval_when_board_toggle_disabl
 
 
 @pytest.mark.asyncio
+async def test_update_task_rejects_done_without_required_output_field() -> None:
+    engine = await _make_engine()
+    try:
+        async with await _make_session(engine) as session:
+            project, task, agent = await _seed_project_task_and_agent(
+                session,
+                require_approval_for_done=False,
+            )
+            definition = TaskCustomFieldDefinition(
+                organization_id=project.organization_id,
+                field_key="github_pr",
+                label="GitHub PR",
+                field_type="url",
+                required_for_done=True,
+            )
+            session.add(definition)
+            await session.flush()
+            session.add(
+                ProjectTaskCustomField(
+                    organization_id=project.organization_id,
+                    project_id=project.id,
+                    task_custom_field_definition_id=definition.id,
+                ),
+            )
+            await session.commit()
+
+            with pytest.raises(HTTPException) as exc:
+                await _update_task_to_done(session, task=task, agent=agent)
+
+            assert exc.value.status_code == 409
+            detail = exc.value.detail
+            assert isinstance(detail, dict)
+            assert detail["code"] == "task_output_required_for_done"
+            assert detail["missing_field_keys"] == ["github_pr"]
+
+            updated = await tasks_api.update_task(
+                payload=TaskUpdate(
+                    status="done",
+                    custom_field_values={"github_pr": "https://github.com/acme/repo/pull/1"},
+                ),
+                task=task,
+                session=session,
+                actor=ActorContext(actor_type="agent", agent=agent),
+            )
+
+            assert updated.status == "done"
+            assert updated.completed_at is not None
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_update_task_rejects_done_from_in_progress_when_review_toggle_enabled() -> None:
     engine = await _make_engine()
     try:
         async with await _make_session(engine) as session:
-            _board, task, agent = await _seed_board_task_and_agent(
+            _project, task, agent = await _seed_project_task_and_agent(
                 session,
                 task_status="in_progress",
                 require_approval_for_done=False,
@@ -255,7 +308,7 @@ async def test_update_task_rejects_done_from_in_progress_when_review_toggle_enab
             detail = exc.value.detail
             assert isinstance(detail, dict)
             assert detail["message"] == (
-                "Task can only be marked done from review when the board rule is enabled."
+                "Task can only be marked done from review when the project rule is enabled."
             )
     finally:
         await engine.dispose()
@@ -266,7 +319,7 @@ async def test_update_task_allows_done_from_review_when_review_toggle_enabled() 
     engine = await _make_engine()
     try:
         async with await _make_session(engine) as session:
-            _board, task, agent = await _seed_board_task_and_agent(
+            _project, task, agent = await _seed_project_task_and_agent(
                 session,
                 task_status="review",
                 require_approval_for_done=False,
@@ -292,7 +345,7 @@ async def test_update_task_rejects_status_change_with_pending_approval_when_togg
     engine = await _make_engine()
     try:
         async with await _make_session(engine) as session:
-            board, task, agent = await _seed_board_task_and_agent(
+            project, task, agent = await _seed_project_task_and_agent(
                 session,
                 task_status="inbox",
                 require_approval_for_done=False,
@@ -301,7 +354,7 @@ async def test_update_task_rejects_status_change_with_pending_approval_when_togg
             session.add(
                 Approval(
                     id=uuid4(),
-                    board_id=board.id,
+                    project_id=project.id,
                     task_id=task.id,
                     action_type="task.execute",
                     confidence=70,
@@ -335,7 +388,7 @@ async def test_update_task_allows_status_change_with_pending_approval_when_toggl
     engine = await _make_engine()
     try:
         async with await _make_session(engine) as session:
-            board, task, agent = await _seed_board_task_and_agent(
+            project, task, agent = await _seed_project_task_and_agent(
                 session,
                 task_status="inbox",
                 require_approval_for_done=False,
@@ -344,7 +397,7 @@ async def test_update_task_allows_status_change_with_pending_approval_when_toggl
             session.add(
                 Approval(
                     id=uuid4(),
-                    board_id=board.id,
+                    project_id=project.id,
                     task_id=task.id,
                     action_type="task.execute",
                     confidence=70,
@@ -370,7 +423,7 @@ async def test_update_task_rejects_non_lead_status_change_when_only_lead_rule_en
     engine = await _make_engine()
     try:
         async with await _make_session(engine) as session:
-            _board, task, agent = await _seed_board_task_and_agent(
+            _project, task, agent = await _seed_project_task_and_agent(
                 session,
                 task_status="inbox",
                 require_approval_for_done=False,
@@ -395,7 +448,7 @@ async def test_update_task_allows_non_lead_status_change_when_only_lead_rule_dis
     engine = await _make_engine()
     try:
         async with await _make_session(engine) as session:
-            _board, task, agent = await _seed_board_task_and_agent(
+            _project, task, agent = await _seed_project_task_and_agent(
                 session,
                 task_status="inbox",
                 require_approval_for_done=False,
@@ -419,13 +472,13 @@ async def test_update_task_lead_can_still_change_status_when_only_lead_rule_enab
     engine = await _make_engine()
     try:
         async with await _make_session(engine) as session:
-            _board, task, lead_agent = await _seed_board_task_and_agent(
+            _project, task, lead_agent = await _seed_project_task_and_agent(
                 session,
                 task_status="review",
                 require_approval_for_done=False,
                 require_review_before_done=False,
                 only_lead_can_change_status=True,
-                agent_is_board_lead=True,
+                agent_is_project_lead=True,
             )
 
             updated = await tasks_api.update_task(
@@ -445,7 +498,7 @@ async def test_update_task_allows_dependency_change_with_pending_approval() -> N
     engine = await _make_engine()
     try:
         async with await _make_session(engine) as session:
-            board, task, _agent = await _seed_board_task_and_agent(
+            project, task, _agent = await _seed_project_task_and_agent(
                 session,
                 task_status="review",
                 require_approval_for_done=False,
@@ -453,7 +506,7 @@ async def test_update_task_allows_dependency_change_with_pending_approval() -> N
             )
             dependency = Task(
                 id=uuid4(),
-                board_id=board.id,
+                project_id=project.id,
                 title="Dependency",
                 status="inbox",
             )
@@ -461,7 +514,7 @@ async def test_update_task_allows_dependency_change_with_pending_approval() -> N
             session.add(
                 Approval(
                     id=uuid4(),
-                    board_id=board.id,
+                    project_id=project.id,
                     task_id=task.id,
                     action_type="task.execute",
                     confidence=70,
@@ -494,20 +547,20 @@ async def test_update_task_rejects_status_change_for_pending_multi_task_link_whe
     engine = await _make_engine()
     try:
         async with await _make_session(engine) as session:
-            board, task, agent = await _seed_board_task_and_agent(
+            project, task, agent = await _seed_project_task_and_agent(
                 session,
                 task_status="inbox",
                 require_approval_for_done=False,
                 block_status_changes_with_pending_approval=True,
             )
             primary_task_id = uuid4()
-            session.add(Task(id=primary_task_id, board_id=board.id, title="Primary"))
+            session.add(Task(id=primary_task_id, project_id=project.id, title="Primary"))
 
             approval_id = uuid4()
             session.add(
                 Approval(
                     id=approval_id,
-                    board_id=board.id,
+                    project_id=project.id,
                     task_id=primary_task_id,
                     action_type="task.batch_execute",
                     confidence=73,

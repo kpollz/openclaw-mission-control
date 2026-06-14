@@ -11,7 +11,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 
-import { type BoardGroupRead, type BoardRead } from "@/api/generated/model";
+import { type ProjectRead } from "@/api/generated/model";
 import {
   DataTable,
   type DataTableEmptyState,
@@ -19,8 +19,7 @@ import {
 import { dateCell, linkifyCell } from "@/components/tables/cell-formatters";
 
 type BoardsTableProps = {
-  boards: BoardRead[];
-  boardGroups?: BoardGroupRead[];
+  boards: ProjectRead[];
   isLoading?: boolean;
   sorting?: SortingState;
   onSortingChange?: OnChangeFn<SortingState>;
@@ -29,7 +28,7 @@ type BoardsTableProps = {
   hiddenColumns?: string[];
   columnOrder?: string[];
   disableSorting?: boolean;
-  onDelete?: (board: BoardRead) => void;
+  onDelete?: (board: ProjectRead) => void;
   emptyMessage?: string;
   emptyState?: Omit<DataTableEmptyState, "icon"> & {
     icon?: DataTableEmptyState["icon"];
@@ -53,12 +52,8 @@ const DEFAULT_EMPTY_ICON = (
   </svg>
 );
 
-const compactId = (value: string) =>
-  value.length > 8 ? `${value.slice(0, 8)}…` : value;
-
 export function BoardsTable({
   boards,
-  boardGroups = [],
   isLoading = false,
   sorting,
   onSortingChange,
@@ -68,7 +63,7 @@ export function BoardsTable({
   columnOrder,
   disableSorting = false,
   onDelete,
-  emptyMessage = "No boards found.",
+  emptyMessage = "No projects found.",
   emptyState,
 }: BoardsTableProps) {
   const [internalSorting, setInternalSorting] = useState<SortingState>([
@@ -87,48 +82,16 @@ export function BoardsTable({
       ),
     [hiddenColumns],
   );
-  const groupById = useMemo(() => {
-    const map = new Map<string, BoardGroupRead>();
-    for (const group of boardGroups) {
-      map.set(group.id, group);
-    }
-    return map;
-  }, [boardGroups]);
-
-  const columns = useMemo<ColumnDef<BoardRead>[]>(() => {
-    const baseColumns: ColumnDef<BoardRead>[] = [
+  const columns = useMemo<ColumnDef<ProjectRead>[]>(() => {
+    const baseColumns: ColumnDef<ProjectRead>[] = [
       {
         accessorKey: "name",
-        header: "Board",
+        header: "Project",
         cell: ({ row }) =>
           linkifyCell({
-            href: `/boards/${row.original.id}`,
+            href: `/projects/${row.original.id}`,
             label: row.original.name,
           }),
-      },
-      {
-        id: "group",
-        accessorFn: (row) => {
-          const groupId = row.board_group_id;
-          if (!groupId) return "";
-          return groupById.get(groupId)?.name ?? groupId;
-        },
-        header: "Group",
-        cell: ({ row }) => {
-          const groupId = row.original.board_group_id;
-          if (!groupId) {
-            return <span className="text-sm text-slate-400">—</span>;
-          }
-          const group = groupById.get(groupId);
-          const label = group?.name ?? compactId(groupId);
-          const title = group?.name ?? groupId;
-          return linkifyCell({
-            href: `/board-groups/${groupId}`,
-            label,
-            title,
-            block: false,
-          });
-        },
       },
       {
         accessorKey: "updated_at",
@@ -138,7 +101,7 @@ export function BoardsTable({
     ];
 
     return baseColumns;
-  }, [groupById]);
+  }, []);
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
@@ -166,7 +129,7 @@ export function BoardsTable({
       rowActions={
         showActions
           ? {
-              getEditHref: (board) => `/boards/${board.id}/edit`,
+              getEditHref: (board) => `/projects/${board.id}/edit`,
               onDelete,
             }
           : undefined

@@ -18,10 +18,10 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--gateway-id", type=str, required=True, help="Gateway UUID")
     parser.add_argument(
-        "--board-id",
+        "--project-id",
         type=str,
         default=None,
-        help="Optional Board UUID filter",
+        help="Optional Project UUID filter",
     )
     parser.add_argument(
         "--user-id",
@@ -38,7 +38,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--lead-only",
         action="store_true",
-        help="Sync only board lead agents",
+        help="Sync only project lead agents",
     )
     parser.add_argument(
         "--reset-sessions",
@@ -66,17 +66,17 @@ def _parse_args() -> argparse.Namespace:
 
 
 async def _run() -> int:
-    from app.db.session import async_session_maker
-    from app.models.gateways import Gateway
-    from app.models.users import User
-    from app.services.openclaw.provisioning_db import (
+    from app.infrastructure.database.session import async_session_maker
+    from app.infrastructure.models.gateways import Gateway
+    from app.infrastructure.models.users import User
+    from app.application.use_cases.agents.provisioning_db import (
         GatewayTemplateSyncOptions,
         OpenClawProvisioningService,
     )
 
     args = _parse_args()
     gateway_id = UUID(args.gateway_id)
-    board_id = UUID(args.board_id) if args.board_id else None
+    project_id = UUID(args.project_id) if args.project_id else None
     user_id = UUID(args.user_id) if args.user_id else None
 
     async with async_session_maker() as session:
@@ -99,7 +99,7 @@ async def _run() -> int:
                 rotate_tokens=bool(args.rotate_tokens),
                 force_bootstrap=bool(args.force_bootstrap),
                 overwrite=bool(args.overwrite),
-                board_id=board_id,
+                project_id=project_id,
             ),
         )
 
@@ -117,7 +117,7 @@ async def _run() -> int:
         for err in result.errors:
             agent = f"{err.agent_name} ({err.agent_id})" if err.agent_id else "n/a"
             sys.stdout.write(
-                f"- agent={agent} board_id={err.board_id} message={err.message}\n",
+                f"- agent={agent} project_id={err.project_id} message={err.message}\n",
             )
         return 1
     return 0

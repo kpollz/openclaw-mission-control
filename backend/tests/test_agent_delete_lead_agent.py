@@ -10,9 +10,9 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi import HTTPException, status
 
-import app.services.openclaw.provisioning_db as agent_service
-from app.models.board_webhooks import BoardWebhook
-from app.services.openclaw.gateway_rpc import GatewayConfig as GatewayClientConfig
+import app.application.use_cases.agents.provisioning_db as agent_service
+from app.infrastructure.models.project_webhooks import ProjectWebhook
+from app.infrastructure.gateway.rpc_client import GatewayConfig as GatewayClientConfig
 
 
 @dataclass
@@ -35,12 +35,12 @@ class _AgentStub:
     id: UUID
     name: str
     gateway_id: UUID
-    board_id: UUID | None = None
-    is_board_lead: bool = False
+    project_id: UUID | None = None
+    is_project_lead: bool = False
 
 
 @dataclass
-class _BoardStub:
+class _ProjectStub:
     id: UUID
     gateway_id: UUID
 
@@ -56,27 +56,27 @@ class _GatewayStub:
 
 
 @pytest.mark.asyncio
-async def test_delete_agent_as_lead_removes_board_agent(
+async def test_delete_agent_as_lead_removes_project_agent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session = _FakeSession()
     service = agent_service.AgentLifecycleService(session)  # type: ignore[arg-type]
 
     gateway_id = uuid4()
-    board = _BoardStub(id=uuid4(), gateway_id=gateway_id)
+    project = _ProjectStub(id=uuid4(), gateway_id=gateway_id)
     lead = _AgentStub(
         id=uuid4(),
         name="Lead Agent",
         gateway_id=gateway_id,
-        board_id=board.id,
-        is_board_lead=True,
+        project_id=project.id,
+        is_project_lead=True,
     )
     target = _AgentStub(
         id=uuid4(),
         name="Worker Agent",
         gateway_id=gateway_id,
-        board_id=board.id,
-        is_board_lead=False,
+        project_id=project.id,
+        is_project_lead=False,
     )
 
     async def _fake_first_agent(_session: object) -> _AgentStub:
@@ -88,11 +88,11 @@ async def test_delete_agent_as_lead_removes_board_agent(
         SimpleNamespace(by_id=lambda _id: SimpleNamespace(first=_fake_first_agent)),
     )
 
-    async def _fake_require_board(_board_id: object, **_kwargs: object) -> _BoardStub:
-        return board
+    async def _fake_require_project(_project_id: object, **_kwargs: object) -> _ProjectStub:
+        return project
 
     async def _fake_require_gateway(
-        _board: object,
+        _project: object,
     ) -> tuple[_GatewayStub, GatewayClientConfig]:
         gateway = _GatewayStub(
             id=gateway_id,
@@ -119,7 +119,7 @@ async def test_delete_agent_as_lead_removes_board_agent(
         update_models.append(model)
         return None
 
-    monkeypatch.setattr(service, "require_board", _fake_require_board)
+    monkeypatch.setattr(service, "require_project", _fake_require_project)
     monkeypatch.setattr(service, "require_gateway", _fake_require_gateway)
     monkeypatch.setattr(
         agent_service.OpenClawGatewayProvisioner,
@@ -136,7 +136,7 @@ async def test_delete_agent_as_lead_removes_board_agent(
 
     assert result.ok is True
     assert session.deleted and session.deleted[0] == target
-    assert BoardWebhook in update_models
+    assert ProjectWebhook in update_models
 
 
 @pytest.mark.asyncio
@@ -147,20 +147,20 @@ async def test_delete_agent_as_lead_rejects_gateway_main(
     service = agent_service.AgentLifecycleService(session)  # type: ignore[arg-type]
 
     gateway_id = uuid4()
-    board_id = uuid4()
+    project_id = uuid4()
     lead = _AgentStub(
         id=uuid4(),
         name="Lead Agent",
         gateway_id=gateway_id,
-        board_id=board_id,
-        is_board_lead=True,
+        project_id=project_id,
+        is_project_lead=True,
     )
     target = _AgentStub(
         id=uuid4(),
         name="Gateway Main",
         gateway_id=gateway_id,
-        board_id=None,
-        is_board_lead=False,
+        project_id=None,
+        is_project_lead=False,
     )
 
     async def _fake_first_agent(_session: object) -> _AgentStub:

@@ -47,11 +47,11 @@ const initialsFrom = (value?: string | null) => {
 
 const summarizeAccess = (allRead: boolean, allWrite: boolean) => {
   if (allRead || allWrite) {
-    if (allRead && allWrite) return "All boards: read + write";
-    if (allWrite) return "All boards: write";
-    return "All boards: read";
+    if (allRead && allWrite) return "All projects: read + write";
+    if (allWrite) return "All projects: write";
+    return "All projects: read";
   }
-  return "Selected boards";
+  return "Selected projects";
 };
 
 const memberDisplay = (member: OrganizationMemberRead) => {
@@ -158,12 +158,12 @@ export function MembersInvitesTable({
           <span className="text-slate-600">
             {row.original.kind === "member"
               ? summarizeAccess(
-                  row.original.member.all_boards_read,
-                  row.original.member.all_boards_write,
+                  row.original.member.all_projects_read,
+                  row.original.member.all_projects_write,
                 )
               : summarizeAccess(
-                  row.original.invite.all_boards_read,
-                  row.original.invite.all_boards_write,
+                  row.original.invite.all_projects_read,
+                  row.original.invite.all_projects_write,
                 )}
           </span>
         ),

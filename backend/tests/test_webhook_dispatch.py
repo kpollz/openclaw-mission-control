@@ -10,8 +10,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from app.services.webhooks import dispatch
-from app.services.webhooks.queue import (
+from app.infrastructure.webhooks import dispatch
+from app.infrastructure.webhooks.queue import (
     QueuedInboundDelivery,
     dequeue_webhook_delivery,
     enqueue_webhook_delivery,
@@ -39,23 +39,23 @@ def test_webhook_queue_roundtrip(monkeypatch: pytest.MonkeyPatch, attempts: int)
     def _fake_redis(*, redis_url: str | None = None) -> _FakeRedis:
         return fake
 
-    board_id = uuid4()
+    project_id = uuid4()
     webhook_id = uuid4()
     payload_id = uuid4()
     payload = QueuedInboundDelivery(
-        board_id=board_id,
+        project_id=project_id,
         webhook_id=webhook_id,
         payload_id=payload_id,
         received_at=datetime.now(UTC),
         attempts=attempts,
     )
 
-    monkeypatch.setattr("app.services.queue._redis_client", _fake_redis)
+    monkeypatch.setattr("app.infrastructure.queue.redis_queue._redis_client", _fake_redis)
     assert enqueue_webhook_delivery(payload)
 
     dequeued = dequeue_webhook_delivery()
     assert dequeued is not None
-    assert dequeued.board_id == board_id
+    assert dequeued.project_id == project_id
     assert dequeued.webhook_id == webhook_id
     assert dequeued.payload_id == payload_id
     assert dequeued.attempts == attempts
@@ -68,13 +68,13 @@ def test_webhook_queue_dequeue_legacy_payload(monkeypatch: pytest.MonkeyPatch) -
         return fake
 
     payload_id = uuid4()
-    board_id = uuid4()
+    project_id = uuid4()
     webhook_id = uuid4()
     received_at = datetime.now(UTC)
     fake.values.append(
         json.dumps(
             {
-                "board_id": str(board_id),
+                "project_id": str(project_id),
                 "webhook_id": str(webhook_id),
                 "payload_id": str(payload_id),
                 "received_at": received_at.isoformat(),
@@ -83,11 +83,11 @@ def test_webhook_queue_dequeue_legacy_payload(monkeypatch: pytest.MonkeyPatch) -
         )
     )
 
-    monkeypatch.setattr("app.services.queue._redis_client", _fake_redis)
+    monkeypatch.setattr("app.infrastructure.queue.redis_queue._redis_client", _fake_redis)
     dequeued = dequeue_webhook_delivery()
 
     assert dequeued is not None
-    assert dequeued.board_id == board_id
+    assert dequeued.project_id == project_id
     assert dequeued.webhook_id == webhook_id
     assert dequeued.payload_id == payload_id
     assert dequeued.attempts == 2
@@ -100,10 +100,10 @@ def test_requeue_respects_retry_cap(monkeypatch: pytest.MonkeyPatch, attempts: i
     def _fake_redis(*, redis_url: str | None = None) -> _FakeRedis:
         return fake
 
-    monkeypatch.setattr("app.services.queue._redis_client", _fake_redis)
+    monkeypatch.setattr("app.infrastructure.queue.redis_queue._redis_client", _fake_redis)
 
     payload = QueuedInboundDelivery(
-        board_id=uuid4(),
+        project_id=uuid4(),
         webhook_id=uuid4(),
         payload_id=uuid4(),
         received_at=datetime.now(UTC),
@@ -124,7 +124,7 @@ class _FakeQueuedItem:
     def __init__(self, attempts: int = 0) -> None:
         self.payload_id = uuid4()
         self.webhook_id = uuid4()
-        self.board_id = uuid4()
+        self.project_id = uuid4()
         self.attempts = attempts
 
 
@@ -247,7 +247,7 @@ async def test_notify_target_agent_prefers_mapped_agent(monkeypatch: pytest.Monk
             del session
             if self._kwargs.get("id") == agent_id:
                 return mapped_agent
-            if self._kwargs.get("is_board_lead") is True:
+            if self._kwargs.get("is_project_lead") is True:
                 return lead_agent
             return None
 
@@ -255,8 +255,8 @@ async def test_notify_target_agent_prefers_mapped_agent(monkeypatch: pytest.Monk
         def __init__(self, session: object) -> None:
             del session
 
-        async def optional_gateway_config_for_board(self, board: object) -> object:
-            del board
+        async def optional_gateway_config_for_project(self, project: object) -> object:
+            del project
             return object()
 
         async def try_send_agent_message(
@@ -275,12 +275,12 @@ async def test_notify_target_agent_prefers_mapped_agent(monkeypatch: pytest.Monk
     monkeypatch.setattr(dispatch, "GatewayDispatchService", _FakeDispatchService)
 
     webhook = SimpleNamespace(id=uuid4(), description="desc", agent_id=agent_id)
-    board = SimpleNamespace(id=uuid4(), name="Board")
+    project = SimpleNamespace(id=uuid4(), name="Project")
     payload = SimpleNamespace(id=uuid4(), payload={"event": "test"})
 
     await dispatch._notify_target_agent(
         session=SimpleNamespace(),
-        board=board,
+        project=project,
         webhook=webhook,
         payload=payload,
     )
@@ -304,7 +304,7 @@ async def test_notify_target_agent_falls_back_to_lead(monkeypatch: pytest.Monkey
 
         async def first(self, session: object) -> object | None:
             del session
-            if self._kwargs.get("is_board_lead") is True:
+            if self._kwargs.get("is_project_lead") is True:
                 return lead_agent
             return None
 
@@ -312,8 +312,8 @@ async def test_notify_target_agent_falls_back_to_lead(monkeypatch: pytest.Monkey
         def __init__(self, session: object) -> None:
             del session
 
-        async def optional_gateway_config_for_board(self, board: object) -> object:
-            del board
+        async def optional_gateway_config_for_project(self, project: object) -> object:
+            del project
             return object()
 
         async def try_send_agent_message(
@@ -332,12 +332,12 @@ async def test_notify_target_agent_falls_back_to_lead(monkeypatch: pytest.Monkey
     monkeypatch.setattr(dispatch, "GatewayDispatchService", _FakeDispatchService)
 
     webhook = SimpleNamespace(id=uuid4(), description="desc", agent_id=None)
-    board = SimpleNamespace(id=uuid4(), name="Board")
+    project = SimpleNamespace(id=uuid4(), name="Project")
     payload = SimpleNamespace(id=uuid4(), payload={"event": "test"})
 
     await dispatch._notify_target_agent(
         session=SimpleNamespace(),
-        board=board,
+        project=project,
         webhook=webhook,
         payload=payload,
     )

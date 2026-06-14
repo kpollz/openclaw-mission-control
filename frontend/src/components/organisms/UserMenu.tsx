@@ -3,8 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { SignOutButton, useUser } from "@/auth/clerk";
-import { clearLocalAuthToken, isLocalAuthMode } from "@/auth/localAuth";
+import { useUser } from "@/auth/clerk";
+import { clearPasswordTokens } from "@/auth/passwordAuth";
 import {
   Activity,
   Bot,
@@ -38,18 +38,13 @@ export function UserMenu({
   displayEmail: displayEmailFromDb,
 }: UserMenuProps) {
   const [open, setOpen] = useState(false);
-  const { user } = useUser();
-  const localMode = isLocalAuthMode();
-  if (!user && !localMode) return null;
+  const { isSignedIn } = useUser();
+  if (!isSignedIn) return null;
 
-  const avatarUrl = localMode ? null : (user?.imageUrl ?? null);
-  const avatarLabelSource =
-    displayNameFromDb ?? (localMode ? "Local User" : user?.id) ?? "U";
+  const avatarLabelSource = displayNameFromDb ?? "U";
   const avatarLabel = avatarLabelSource.slice(0, 1).toUpperCase();
-  const displayName =
-    displayNameFromDb ?? (localMode ? "Local User" : "Account");
-  const displayEmail =
-    displayEmailFromDb ?? (localMode ? "local@localhost" : "");
+  const displayName = displayNameFromDb ?? "User";
+  const displayEmail = displayEmailFromDb ?? "";
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -59,8 +54,6 @@ export function UserMenu({
           className={cn(
             "group inline-flex h-9 items-center gap-2 rounded-[10px] bg-transparent px-1 py-1 transition",
             "hover:bg-white/70",
-            // Avoid the default browser focus outline (often bright blue) on click.
-            // Keep a subtle, enterprise-looking focus ring for keyboard navigation.
             "focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--neutral-300,var(--border-strong))] focus-visible:ring-offset-2 focus-visible:ring-offset-white",
             "data-[state=open]:bg-white",
             className,
@@ -70,22 +63,10 @@ export function UserMenu({
           <span
             className={cn(
               "relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-[10px] text-xs font-semibold text-white shadow-sm",
-              avatarUrl
-                ? "bg-[color:var(--neutral-200,var(--surface-muted))]"
-                : "bg-gradient-to-br from-[color:var(--primary-navy,var(--accent))] to-[color:var(--secondary-navy,var(--accent-strong))]",
+              "bg-gradient-to-br from-[color:var(--primary-navy,var(--accent))] to-[color:var(--secondary-navy,var(--accent-strong))]",
             )}
           >
-            {avatarUrl ? (
-              <Image
-                src={avatarUrl}
-                alt="User avatar"
-                width={36}
-                height={36}
-                className="h-9 w-9 object-cover"
-              />
-            ) : (
-              avatarLabel
-            )}
+            {avatarLabel}
           </span>
           <ChevronDown className="h-4 w-4 text-[color:var(--neutral-700,var(--text-quiet))] transition group-data-[state=open]:rotate-180" />
         </button>
@@ -100,22 +81,10 @@ export function UserMenu({
             <span
               className={cn(
                 "flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl text-sm font-semibold text-white",
-                avatarUrl
-                  ? "bg-[color:var(--neutral-200,var(--surface-muted))]"
-                  : "bg-gradient-to-br from-[color:var(--primary-navy,var(--accent))] to-[color:var(--secondary-navy,var(--accent-strong))]",
+                "bg-gradient-to-br from-[color:var(--primary-navy,var(--accent))] to-[color:var(--secondary-navy,var(--accent-strong))]",
               )}
             >
-              {avatarUrl ? (
-                <Image
-                  src={avatarUrl}
-                  alt="User avatar"
-                  width={40}
-                  height={40}
-                  className="h-10 w-10 object-cover"
-                />
-              ) : (
-                avatarLabel
-              )}
+              {avatarLabel}
             </span>
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold text-[color:var(--primary-navy,var(--text))]">
@@ -132,20 +101,20 @@ export function UserMenu({
         <div className="p-2">
           <div className="grid grid-cols-2 gap-2">
             <Link
-              href="/boards"
+              href="/projects"
               className="flex w-full items-center justify-center gap-2 rounded-xl border border-[color:var(--neutral-300,var(--border-strong))] bg-white px-3 py-2 text-sm font-semibold text-[color:var(--neutral-800,var(--text))] transition hover:border-[color:var(--primary-navy,var(--accent-strong))] hover:bg-[color:var(--neutral-100,var(--surface-muted))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent-teal,var(--accent))] focus-visible:ring-offset-2"
               onClick={() => setOpen(false)}
             >
               <Trello className="h-4 w-4 text-[color:var(--neutral-700,var(--text-quiet))]" />
-              Open boards
+              Open projects
             </Link>
             <Link
-              href="/boards/new"
+              href="/projects/new"
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-[color:var(--primary-navy,var(--accent))] px-3 py-2 text-sm font-semibold text-white shadow-[0_2px_8px_rgba(10,22,40,0.15)] transition hover:bg-[color:var(--secondary-navy,var(--accent-strong))] hover:translate-y-[-1px] hover:shadow-[0_4px_12px_rgba(10,22,40,0.20)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent-teal,var(--accent))] focus-visible:ring-offset-2"
               onClick={() => setOpen(false)}
             >
               <Plus className="h-4 w-4 opacity-90" />
-              Create board
+              Create project
             </Link>
           </div>
 
@@ -179,31 +148,18 @@ export function UserMenu({
 
           <div className="my-2 h-px bg-[color:var(--neutral-200,var(--border))]" />
 
-          {localMode ? (
-            <button
-              type="button"
-              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-[color:var(--neutral-800,var(--text))] transition hover:bg-[color:var(--neutral-100,var(--surface-muted))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent-teal,var(--accent))] focus-visible:ring-offset-2"
-              onClick={() => {
-                clearLocalAuthToken();
-                setOpen(false);
-                window.location.reload();
-              }}
-            >
-              <LogOut className="h-4 w-4 text-[color:var(--neutral-700,var(--text-quiet))]" />
-              Sign out
-            </button>
-          ) : (
-            <SignOutButton>
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-[color:var(--neutral-800,var(--text))] transition hover:bg-[color:var(--neutral-100,var(--surface-muted))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent-teal,var(--accent))] focus-visible:ring-offset-2"
-                onClick={() => setOpen(false)}
-              >
-                <LogOut className="h-4 w-4 text-[color:var(--neutral-700,var(--text-quiet))]" />
-                Sign out
-              </button>
-            </SignOutButton>
-          )}
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-[color:var(--neutral-800,var(--text))] transition hover:bg-[color:var(--neutral-100,var(--surface-muted))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent-teal,var(--accent))] focus-visible:ring-offset-2"
+            onClick={() => {
+              clearPasswordTokens();
+              setOpen(false);
+              window.location.reload();
+            }}
+          >
+            <LogOut className="h-4 w-4 text-[color:var(--neutral-700,var(--text-quiet))]" />
+            Sign out
+          </button>
         </div>
       </PopoverContent>
     </Popover>

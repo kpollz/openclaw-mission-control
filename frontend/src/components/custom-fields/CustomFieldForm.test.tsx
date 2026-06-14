@@ -2,7 +2,7 @@ import type React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import type { BoardRead } from "@/api/generated/model";
+import type { ProjectRead } from "@/api/generated/model";
 import { CustomFieldForm } from "./CustomFieldForm";
 import { DEFAULT_CUSTOM_FIELD_FORM_STATE } from "./custom-field-form-types";
 
@@ -21,7 +21,7 @@ vi.mock("next/link", () => {
   };
 });
 
-const buildBoard = (overrides: Partial<BoardRead> = {}): BoardRead => ({
+const buildBoard = (overrides: Partial<ProjectRead> = {}): ProjectRead => ({
   id: "board-1",
   name: "Operations",
   slug: "operations",
@@ -60,7 +60,7 @@ describe("CustomFieldForm", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Select at least one board."),
+        screen.getByText("Select at least one project."),
       ).toBeInTheDocument();
     });
     expect(onSubmit).not.toHaveBeenCalled();
@@ -102,7 +102,7 @@ describe("CustomFieldForm", () => {
         description: null,
         required: false,
         defaultValue: null,
-        boardIds: ["board-1"],
+        projectIds: ["board-1"],
       });
     });
   });
@@ -116,7 +116,7 @@ describe("CustomFieldForm", () => {
           fieldKey: "client_name",
           label: "Client Name",
         }}
-        initialBoardIds={["board-1"]}
+        initialProjectIds={["board-1"]}
         boards={[buildBoard()]}
         boardsLoading={false}
         boardsError={null}

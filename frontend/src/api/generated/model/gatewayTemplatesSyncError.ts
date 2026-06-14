@@ -11,6 +11,6 @@
 export interface GatewayTemplatesSyncError {
   agent_id?: string | null;
   agent_name?: string | null;
-  board_id?: string | null;
+  project_id?: string | null;
   message: string;
 }

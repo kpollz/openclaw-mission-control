@@ -9,16 +9,18 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlmodel import SQLModel, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api import tasks as tasks_api
-from app.api.deps import ActorContext
-from app.core.time import utcnow
-from app.models.activity_events import ActivityEvent
-from app.models.agents import Agent
-from app.models.boards import Board
-from app.models.gateways import Gateway
-from app.models.organizations import Organization
-from app.models.tasks import Task
-from app.schemas.tasks import TaskUpdate
+from app.presentation.api import tasks as tasks_api
+from app.presentation.api.deps import ActorContext
+from app.infrastructure.auth.clerk_local_auth import AuthContext
+from app.shared.time import utcnow
+from app.infrastructure.models.activity_events import ActivityEvent
+from app.infrastructure.models.agents import Agent
+from app.infrastructure.models.projects import Project
+from app.infrastructure.models.gateways import Gateway
+from app.infrastructure.models.organizations import Organization
+from app.infrastructure.models.tasks import Task
+from app.infrastructure.models.users import User
+from app.presentation.schemas.tasks import TaskCreate, TaskUpdate
 
 
 async def _make_engine() -> AsyncEngine:
@@ -33,12 +35,128 @@ async def _make_session(engine: AsyncEngine) -> AsyncSession:
 
 
 @pytest.mark.asyncio
+async def test_create_task_uses_authenticated_user_as_creator() -> None:
+    engine = await _make_engine()
+    try:
+        async with await _make_session(engine) as session:
+            org_id = uuid4()
+            project_id = uuid4()
+            gateway_id = uuid4()
+            user_id = uuid4()
+            spoofed_user_id = uuid4()
+            session.add(Organization(id=org_id, name="org"))
+            session.add(
+                Gateway(
+                    id=gateway_id,
+                    organization_id=org_id,
+                    name="gateway",
+                    url="https://gateway.local",
+                    workspace_root="/tmp/workspace",
+                ),
+            )
+            project = Project(
+                id=project_id,
+                organization_id=org_id,
+                name="project",
+                slug="project",
+                gateway_id=gateway_id,
+            )
+            user = User(
+                id=user_id,
+                clerk_user_id="user-creator",
+                email="creator@example.com",
+                active_organization_id=org_id,
+            )
+            session.add(project)
+            session.add(user)
+            await session.commit()
+
+            created = await tasks_api.create_task(
+                payload=TaskCreate(
+                    title="Creator is server-owned",
+                    created_by_user_id=spoofed_user_id,
+                ),
+                project=project,
+                session=session,
+                auth=AuthContext(actor_type="user", user=user),
+            )
+
+            assert created.created_by_user_id == user_id
+            assert created.created_by_user_id != spoofed_user_id
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_create_task_rejects_gateway_main_agent_assignee() -> None:
+    engine = await _make_engine()
+    try:
+        async with await _make_session(engine) as session:
+            org_id = uuid4()
+            project_id = uuid4()
+            gateway_id = uuid4()
+            user_id = uuid4()
+            main_agent_id = uuid4()
+            session.add(Organization(id=org_id, name="org"))
+            session.add(
+                Gateway(
+                    id=gateway_id,
+                    organization_id=org_id,
+                    name="gateway",
+                    url="https://gateway.local",
+                    workspace_root="/tmp/workspace",
+                ),
+            )
+            project = Project(
+                id=project_id,
+                organization_id=org_id,
+                name="project",
+                slug="project",
+                gateway_id=gateway_id,
+            )
+            user = User(
+                id=user_id,
+                clerk_user_id="user-assignee",
+                email="assignee@example.com",
+                active_organization_id=org_id,
+            )
+            session.add(project)
+            session.add(user)
+            session.add(
+                Agent(
+                    id=main_agent_id,
+                    name="Gateway Main",
+                    project_id=None,
+                    gateway_id=gateway_id,
+                    status="online",
+                ),
+            )
+            await session.commit()
+
+            with pytest.raises(HTTPException) as exc:
+                await tasks_api.create_task(
+                    payload=TaskCreate(
+                        title="Bad assignee",
+                        assigned_agent_id=main_agent_id,
+                    ),
+                    project=project,
+                    session=session,
+                    auth=AuthContext(actor_type="user", user=user),
+                )
+
+            assert exc.value.status_code == 409
+            assert exc.value.detail == "Gateway-main agents cannot be assigned to project tasks."
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_non_lead_agent_can_update_status_for_assigned_task() -> None:
     engine = await _make_engine()
     try:
         async with await _make_session(engine) as session:
             org_id = uuid4()
-            board_id = uuid4()
+            project_id = uuid4()
             gateway_id = uuid4()
             worker_id = uuid4()
             task_id = uuid4()
@@ -54,11 +172,11 @@ async def test_non_lead_agent_can_update_status_for_assigned_task() -> None:
                 ),
             )
             session.add(
-                Board(
-                    id=board_id,
+                Project(
+                    id=project_id,
                     organization_id=org_id,
-                    name="board",
-                    slug="board",
+                    name="project",
+                    slug="project",
                     gateway_id=gateway_id,
                 ),
             )
@@ -66,7 +184,7 @@ async def test_non_lead_agent_can_update_status_for_assigned_task() -> None:
                 Agent(
                     id=worker_id,
                     name="worker",
-                    board_id=board_id,
+                    project_id=project_id,
                     gateway_id=gateway_id,
                     status="online",
                 ),
@@ -74,7 +192,7 @@ async def test_non_lead_agent_can_update_status_for_assigned_task() -> None:
             session.add(
                 Task(
                     id=task_id,
-                    board_id=board_id,
+                    project_id=project_id,
                     title="assigned task",
                     description="",
                     status="inbox",
@@ -107,7 +225,7 @@ async def test_non_lead_agent_can_update_status_for_unassigned_task() -> None:
     try:
         async with await _make_session(engine) as session:
             org_id = uuid4()
-            board_id = uuid4()
+            project_id = uuid4()
             gateway_id = uuid4()
             actor_id = uuid4()
             task_id = uuid4()
@@ -123,11 +241,11 @@ async def test_non_lead_agent_can_update_status_for_unassigned_task() -> None:
                 ),
             )
             session.add(
-                Board(
-                    id=board_id,
+                Project(
+                    id=project_id,
                     organization_id=org_id,
-                    name="board",
-                    slug="board",
+                    name="project",
+                    slug="project",
                     gateway_id=gateway_id,
                     only_lead_can_change_status=False,
                 ),
@@ -136,7 +254,7 @@ async def test_non_lead_agent_can_update_status_for_unassigned_task() -> None:
                 Agent(
                     id=actor_id,
                     name="actor",
-                    board_id=board_id,
+                    project_id=project_id,
                     gateway_id=gateway_id,
                     status="online",
                 ),
@@ -144,7 +262,7 @@ async def test_non_lead_agent_can_update_status_for_unassigned_task() -> None:
             session.add(
                 Task(
                     id=task_id,
-                    board_id=board_id,
+                    project_id=project_id,
                     title="unassigned task",
                     description="",
                     status="inbox",
@@ -177,7 +295,7 @@ async def test_non_lead_agent_forbidden_when_task_assigned_to_other_agent() -> N
     try:
         async with await _make_session(engine) as session:
             org_id = uuid4()
-            board_id = uuid4()
+            project_id = uuid4()
             gateway_id = uuid4()
             actor_id = uuid4()
             assignee_id = uuid4()
@@ -194,11 +312,11 @@ async def test_non_lead_agent_forbidden_when_task_assigned_to_other_agent() -> N
                 ),
             )
             session.add(
-                Board(
-                    id=board_id,
+                Project(
+                    id=project_id,
                     organization_id=org_id,
-                    name="board",
-                    slug="board",
+                    name="project",
+                    slug="project",
                     gateway_id=gateway_id,
                 ),
             )
@@ -206,7 +324,7 @@ async def test_non_lead_agent_forbidden_when_task_assigned_to_other_agent() -> N
                 Agent(
                     id=actor_id,
                     name="actor",
-                    board_id=board_id,
+                    project_id=project_id,
                     gateway_id=gateway_id,
                     status="online",
                 ),
@@ -215,7 +333,7 @@ async def test_non_lead_agent_forbidden_when_task_assigned_to_other_agent() -> N
                 Agent(
                     id=assignee_id,
                     name="other",
-                    board_id=board_id,
+                    project_id=project_id,
                     gateway_id=gateway_id,
                     status="online",
                 ),
@@ -223,7 +341,7 @@ async def test_non_lead_agent_forbidden_when_task_assigned_to_other_agent() -> N
             session.add(
                 Task(
                     id=task_id,
-                    board_id=board_id,
+                    project_id=project_id,
                     title="other owner task",
                     description="",
                     status="inbox",
@@ -262,7 +380,7 @@ async def test_non_lead_agent_forbidden_for_lead_only_patch_fields() -> None:
     try:
         async with await _make_session(engine) as session:
             org_id = uuid4()
-            board_id = uuid4()
+            project_id = uuid4()
             gateway_id = uuid4()
             actor_id = uuid4()
             task_id = uuid4()
@@ -278,11 +396,11 @@ async def test_non_lead_agent_forbidden_for_lead_only_patch_fields() -> None:
                 ),
             )
             session.add(
-                Board(
-                    id=board_id,
+                Project(
+                    id=project_id,
                     organization_id=org_id,
-                    name="board",
-                    slug="board",
+                    name="project",
+                    slug="project",
                     gateway_id=gateway_id,
                 ),
             )
@@ -290,7 +408,7 @@ async def test_non_lead_agent_forbidden_for_lead_only_patch_fields() -> None:
                 Agent(
                     id=actor_id,
                     name="actor",
-                    board_id=board_id,
+                    project_id=project_id,
                     gateway_id=gateway_id,
                     status="online",
                 ),
@@ -298,7 +416,7 @@ async def test_non_lead_agent_forbidden_for_lead_only_patch_fields() -> None:
             session.add(
                 Task(
                     id=task_id,
-                    board_id=board_id,
+                    project_id=project_id,
                     title="owned task",
                     description="",
                     status="inbox",
@@ -333,7 +451,7 @@ async def test_non_lead_agent_moves_task_to_review_and_reassigns_to_lead() -> No
     try:
         async with await _make_session(engine) as session:
             org_id = uuid4()
-            board_id = uuid4()
+            project_id = uuid4()
             gateway_id = uuid4()
             worker_id = uuid4()
             lead_id = uuid4()
@@ -351,11 +469,11 @@ async def test_non_lead_agent_moves_task_to_review_and_reassigns_to_lead() -> No
                 ),
             )
             session.add(
-                Board(
-                    id=board_id,
+                Project(
+                    id=project_id,
                     organization_id=org_id,
-                    name="board",
-                    slug="board",
+                    name="project",
+                    slug="project",
                     gateway_id=gateway_id,
                 ),
             )
@@ -363,7 +481,7 @@ async def test_non_lead_agent_moves_task_to_review_and_reassigns_to_lead() -> No
                 Agent(
                     id=worker_id,
                     name="worker",
-                    board_id=board_id,
+                    project_id=project_id,
                     gateway_id=gateway_id,
                     status="online",
                 ),
@@ -372,16 +490,16 @@ async def test_non_lead_agent_moves_task_to_review_and_reassigns_to_lead() -> No
                 Agent(
                     id=lead_id,
                     name="Lead Agent",
-                    board_id=board_id,
+                    project_id=project_id,
                     gateway_id=gateway_id,
                     status="online",
-                    is_board_lead=True,
+                    is_project_lead=True,
                 ),
             )
             session.add(
                 Task(
                     id=task_id,
-                    board_id=board_id,
+                    project_id=project_id,
                     title="assigned task",
                     description="",
                     status="in_progress",
@@ -425,7 +543,7 @@ async def test_non_lead_agent_move_to_review_reassigns_to_lead_and_sends_review_
     try:
         async with await _make_session(engine) as session:
             org_id = uuid4()
-            board_id = uuid4()
+            project_id = uuid4()
             gateway_id = uuid4()
             worker_id = uuid4()
             lead_id = uuid4()
@@ -442,11 +560,11 @@ async def test_non_lead_agent_move_to_review_reassigns_to_lead_and_sends_review_
                 ),
             )
             session.add(
-                Board(
-                    id=board_id,
+                Project(
+                    id=project_id,
                     organization_id=org_id,
-                    name="board",
-                    slug="board",
+                    name="project",
+                    slug="project",
                     gateway_id=gateway_id,
                 ),
             )
@@ -454,7 +572,7 @@ async def test_non_lead_agent_move_to_review_reassigns_to_lead_and_sends_review_
                 Agent(
                     id=worker_id,
                     name="worker",
-                    board_id=board_id,
+                    project_id=project_id,
                     gateway_id=gateway_id,
                     status="online",
                 ),
@@ -463,17 +581,17 @@ async def test_non_lead_agent_move_to_review_reassigns_to_lead_and_sends_review_
                 Agent(
                     id=lead_id,
                     name="Lead Agent",
-                    board_id=board_id,
+                    project_id=project_id,
                     gateway_id=gateway_id,
                     status="online",
-                    is_board_lead=True,
+                    is_project_lead=True,
                     openclaw_session_id="lead-session",
                 ),
             )
             session.add(
                 Task(
                     id=task_id,
-                    board_id=board_id,
+                    project_id=project_id,
                     title="assigned task",
                     description="done and ready",
                     status="in_progress",
@@ -489,10 +607,11 @@ async def test_non_lead_agent_move_to_review_reassigns_to_lead_and_sends_review_
                 def __init__(self, _session: AsyncSession) -> None:
                     pass
 
-                async def optional_gateway_config_for_board(self, _board: Board) -> object:
+                async def optional_gateway_config_for_project(self, _project: Project) -> object:
                     return object()
 
             async def _fake_send_agent_task_message(
+                _self,
                 *,
                 dispatch: Any,
                 session_key: str,
@@ -506,9 +625,13 @@ async def test_non_lead_agent_move_to_review_reassigns_to_lead_and_sends_review_
                 sent["message"] = message
                 return None
 
-            monkeypatch.setattr(tasks_api, "GatewayDispatchService", _FakeDispatch)
             monkeypatch.setattr(
-                tasks_api, "_send_agent_task_message", _fake_send_agent_task_message
+                "app.application.use_cases.tasks.service.GatewayDispatchService",
+                _FakeDispatch,
+            )
+            monkeypatch.setattr(
+                "app.application.use_cases.tasks.service.TaskService._send_agent_task_message",
+                _fake_send_agent_task_message,
             )
 
             task = (await session.exec(select(Task).where(col(Task.id) == task_id))).first()
@@ -541,7 +664,7 @@ async def test_lead_moves_review_task_to_inbox_and_reassigns_last_worker_with_re
     try:
         async with await _make_session(engine) as session:
             org_id = uuid4()
-            board_id = uuid4()
+            project_id = uuid4()
             gateway_id = uuid4()
             worker_id = uuid4()
             lead_id = uuid4()
@@ -558,11 +681,11 @@ async def test_lead_moves_review_task_to_inbox_and_reassigns_last_worker_with_re
                 ),
             )
             session.add(
-                Board(
-                    id=board_id,
+                Project(
+                    id=project_id,
                     organization_id=org_id,
-                    name="board",
-                    slug="board",
+                    name="project",
+                    slug="project",
                     gateway_id=gateway_id,
                 ),
             )
@@ -570,7 +693,7 @@ async def test_lead_moves_review_task_to_inbox_and_reassigns_last_worker_with_re
                 Agent(
                     id=worker_id,
                     name="worker",
-                    board_id=board_id,
+                    project_id=project_id,
                     gateway_id=gateway_id,
                     status="online",
                     openclaw_session_id="worker-session",
@@ -580,17 +703,17 @@ async def test_lead_moves_review_task_to_inbox_and_reassigns_last_worker_with_re
                 Agent(
                     id=lead_id,
                     name="Lead Agent",
-                    board_id=board_id,
+                    project_id=project_id,
                     gateway_id=gateway_id,
                     status="online",
-                    is_board_lead=True,
+                    is_project_lead=True,
                     openclaw_session_id="lead-session",
                 ),
             )
             session.add(
                 Task(
                     id=task_id,
-                    board_id=board_id,
+                    project_id=project_id,
                     title="assigned task",
                     description="ready",
                     status="in_progress",
@@ -606,10 +729,11 @@ async def test_lead_moves_review_task_to_inbox_and_reassigns_last_worker_with_re
                 def __init__(self, _session: AsyncSession) -> None:
                     pass
 
-                async def optional_gateway_config_for_board(self, _board: Board) -> object:
+                async def optional_gateway_config_for_project(self, _project: Project) -> object:
                     return object()
 
             async def _fake_send_agent_task_message(
+                _self,
                 *,
                 dispatch: Any,
                 session_key: str,
@@ -627,9 +751,13 @@ async def test_lead_moves_review_task_to_inbox_and_reassigns_last_worker_with_re
                 )
                 return None
 
-            monkeypatch.setattr(tasks_api, "GatewayDispatchService", _FakeDispatch)
             monkeypatch.setattr(
-                tasks_api, "_send_agent_task_message", _fake_send_agent_task_message
+                "app.application.use_cases.tasks.service.GatewayDispatchService",
+                _FakeDispatch,
+            )
+            monkeypatch.setattr(
+                "app.application.use_cases.tasks.service.TaskService._send_agent_task_message",
+                _fake_send_agent_task_message,
             )
 
             task = (await session.exec(select(Task).where(col(Task.id) == task_id))).first()
@@ -684,7 +812,7 @@ async def test_non_lead_agent_comment_in_review_without_status_does_not_reassign
     try:
         async with await _make_session(engine) as session:
             org_id = uuid4()
-            board_id = uuid4()
+            project_id = uuid4()
             gateway_id = uuid4()
             assignee_id = uuid4()
             commentator_id = uuid4()
@@ -701,11 +829,11 @@ async def test_non_lead_agent_comment_in_review_without_status_does_not_reassign
                 ),
             )
             session.add(
-                Board(
-                    id=board_id,
+                Project(
+                    id=project_id,
                     organization_id=org_id,
-                    name="board",
-                    slug="board",
+                    name="project",
+                    slug="project",
                     gateway_id=gateway_id,
                 ),
             )
@@ -713,7 +841,7 @@ async def test_non_lead_agent_comment_in_review_without_status_does_not_reassign
                 Agent(
                     id=assignee_id,
                     name="assignee",
-                    board_id=board_id,
+                    project_id=project_id,
                     gateway_id=gateway_id,
                     status="online",
                 ),
@@ -722,7 +850,7 @@ async def test_non_lead_agent_comment_in_review_without_status_does_not_reassign
                 Agent(
                     id=commentator_id,
                     name="commentator",
-                    board_id=board_id,
+                    project_id=project_id,
                     gateway_id=gateway_id,
                     status="online",
                 ),
@@ -730,7 +858,7 @@ async def test_non_lead_agent_comment_in_review_without_status_does_not_reassign
             session.add(
                 Task(
                     id=task_id,
-                    board_id=board_id,
+                    project_id=project_id,
                     title="review task",
                     description="",
                     status="review",
@@ -765,7 +893,7 @@ async def test_non_lead_agent_moves_to_review_without_comment_when_rule_disabled
     try:
         async with await _make_session(engine) as session:
             org_id = uuid4()
-            board_id = uuid4()
+            project_id = uuid4()
             gateway_id = uuid4()
             worker_id = uuid4()
             lead_id = uuid4()
@@ -782,11 +910,11 @@ async def test_non_lead_agent_moves_to_review_without_comment_when_rule_disabled
                 ),
             )
             session.add(
-                Board(
-                    id=board_id,
+                Project(
+                    id=project_id,
                     organization_id=org_id,
-                    name="board",
-                    slug="board",
+                    name="project",
+                    slug="project",
                     gateway_id=gateway_id,
                     comment_required_for_review=False,
                 ),
@@ -795,7 +923,7 @@ async def test_non_lead_agent_moves_to_review_without_comment_when_rule_disabled
                 Agent(
                     id=worker_id,
                     name="worker",
-                    board_id=board_id,
+                    project_id=project_id,
                     gateway_id=gateway_id,
                     status="online",
                 ),
@@ -804,16 +932,16 @@ async def test_non_lead_agent_moves_to_review_without_comment_when_rule_disabled
                 Agent(
                     id=lead_id,
                     name="Lead Agent",
-                    board_id=board_id,
+                    project_id=project_id,
                     gateway_id=gateway_id,
                     status="online",
-                    is_board_lead=True,
+                    is_project_lead=True,
                 ),
             )
             session.add(
                 Task(
                     id=task_id,
-                    board_id=board_id,
+                    project_id=project_id,
                     title="assigned task",
                     description="",
                     status="in_progress",
@@ -849,7 +977,7 @@ async def test_non_lead_agent_moves_to_review_without_comment_or_recent_comment_
     try:
         async with await _make_session(engine) as session:
             org_id = uuid4()
-            board_id = uuid4()
+            project_id = uuid4()
             gateway_id = uuid4()
             worker_id = uuid4()
             task_id = uuid4()
@@ -865,11 +993,11 @@ async def test_non_lead_agent_moves_to_review_without_comment_or_recent_comment_
                 ),
             )
             session.add(
-                Board(
-                    id=board_id,
+                Project(
+                    id=project_id,
                     organization_id=org_id,
-                    name="board",
-                    slug="board",
+                    name="project",
+                    slug="project",
                     gateway_id=gateway_id,
                     comment_required_for_review=True,
                 ),
@@ -878,7 +1006,7 @@ async def test_non_lead_agent_moves_to_review_without_comment_or_recent_comment_
                 Agent(
                     id=worker_id,
                     name="worker",
-                    board_id=board_id,
+                    project_id=project_id,
                     gateway_id=gateway_id,
                     status="online",
                 ),
@@ -886,7 +1014,7 @@ async def test_non_lead_agent_moves_to_review_without_comment_or_recent_comment_
             session.add(
                 Task(
                     id=task_id,
-                    board_id=board_id,
+                    project_id=project_id,
                     title="assigned task",
                     description="",
                     status="in_progress",
@@ -919,16 +1047,19 @@ async def test_non_lead_agent_moves_to_review_without_comment_or_recent_comment_
 async def test_lead_assignment_and_in_progress_wakes_assignee_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def _fake_send_agent_task_message(**_: Any) -> str | None:
+    async def _fake_send_agent_task_message(*_: Any, **__: Any) -> str | None:
         return None
 
-    monkeypatch.setattr(tasks_api, "_send_agent_task_message", _fake_send_agent_task_message)
+    monkeypatch.setattr(
+        "app.application.use_cases.tasks.service.TaskService._send_agent_task_message",
+        _fake_send_agent_task_message,
+    )
 
     engine = await _make_engine()
     try:
         async with await _make_session(engine) as session:
             org_id = uuid4()
-            board_id = uuid4()
+            project_id = uuid4()
             gateway_id = uuid4()
             lead_id = uuid4()
             worker_id = uuid4()
@@ -945,11 +1076,11 @@ async def test_lead_assignment_and_in_progress_wakes_assignee_once(
                 ),
             )
             session.add(
-                Board(
-                    id=board_id,
+                Project(
+                    id=project_id,
                     organization_id=org_id,
-                    name="board",
-                    slug="board",
+                    name="project",
+                    slug="project",
                     gateway_id=gateway_id,
                 ),
             )
@@ -957,10 +1088,10 @@ async def test_lead_assignment_and_in_progress_wakes_assignee_once(
                 Agent(
                     id=lead_id,
                     name="lead",
-                    board_id=board_id,
+                    project_id=project_id,
                     gateway_id=gateway_id,
                     status="online",
-                    is_board_lead=True,
+                    is_project_lead=True,
                     openclaw_session_id="session-lead",
                 ),
             )
@@ -968,7 +1099,7 @@ async def test_lead_assignment_and_in_progress_wakes_assignee_once(
                 Agent(
                     id=worker_id,
                     name="worker",
-                    board_id=board_id,
+                    project_id=project_id,
                     gateway_id=gateway_id,
                     status="offline",
                     openclaw_session_id="session-worker",
@@ -977,7 +1108,7 @@ async def test_lead_assignment_and_in_progress_wakes_assignee_once(
             session.add(
                 Task(
                     id=task_id,
-                    board_id=board_id,
+                    project_id=project_id,
                     title="assignment wake",
                     description="",
                     status="inbox",
@@ -1005,14 +1136,15 @@ async def test_lead_assignment_and_in_progress_wakes_assignee_once(
                 await session.exec(select(Agent).where(col(Agent.id) == worker_id))
             ).first()
             assert reloaded_worker is not None
-            assert reloaded_worker.status == "online"
-            assert reloaded_worker.last_seen_at is not None
+            # Assign does NOT fake a heartbeat — status stays unchanged.
+            assert reloaded_worker.status == "offline"
+            assert reloaded_worker.last_seen_at is None
 
             wake_events = (
                 await session.exec(
                     select(ActivityEvent)
                     .where(col(ActivityEvent.task_id) == task_id)
-                    .where(col(ActivityEvent.event_type) == "task.assignee_woken"),
+                    .where(col(ActivityEvent.event_type) == "task.assignee_wake_requested"),
                 )
             ).all()
             assert len(wake_events) == 1
@@ -1026,16 +1158,19 @@ async def test_lead_assignment_and_in_progress_wakes_assignee_once(
 async def test_entering_in_progress_with_existing_assignee_wakes_assignee(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def _fake_send_agent_task_message(**_: Any) -> str | None:
+    async def _fake_send_agent_task_message(*_: Any, **__: Any) -> str | None:
         return None
 
-    monkeypatch.setattr(tasks_api, "_send_agent_task_message", _fake_send_agent_task_message)
+    monkeypatch.setattr(
+        "app.application.use_cases.tasks.service.TaskService._send_agent_task_message",
+        _fake_send_agent_task_message,
+    )
 
     engine = await _make_engine()
     try:
         async with await _make_session(engine) as session:
             org_id = uuid4()
-            board_id = uuid4()
+            project_id = uuid4()
             gateway_id = uuid4()
             worker_id = uuid4()
             task_id = uuid4()
@@ -1051,11 +1186,11 @@ async def test_entering_in_progress_with_existing_assignee_wakes_assignee(
                 ),
             )
             session.add(
-                Board(
-                    id=board_id,
+                Project(
+                    id=project_id,
                     organization_id=org_id,
-                    name="board",
-                    slug="board",
+                    name="project",
+                    slug="project",
                     gateway_id=gateway_id,
                 ),
             )
@@ -1063,7 +1198,7 @@ async def test_entering_in_progress_with_existing_assignee_wakes_assignee(
                 Agent(
                     id=worker_id,
                     name="worker",
-                    board_id=board_id,
+                    project_id=project_id,
                     gateway_id=gateway_id,
                     status="offline",
                     openclaw_session_id="session-worker",
@@ -1072,7 +1207,7 @@ async def test_entering_in_progress_with_existing_assignee_wakes_assignee(
             session.add(
                 Task(
                     id=task_id,
-                    board_id=board_id,
+                    project_id=project_id,
                     title="status wake",
                     description="",
                     status="inbox",
@@ -1100,14 +1235,15 @@ async def test_entering_in_progress_with_existing_assignee_wakes_assignee(
                 await session.exec(select(Agent).where(col(Agent.id) == worker_id))
             ).first()
             assert reloaded_worker is not None
-            assert reloaded_worker.status == "online"
-            assert reloaded_worker.last_seen_at is not None
+            # Status change does NOT fake a heartbeat — status stays unchanged.
+            assert reloaded_worker.status == "offline"
+            assert reloaded_worker.last_seen_at is None
 
             wake_events = (
                 await session.exec(
                     select(ActivityEvent)
                     .where(col(ActivityEvent.task_id) == task_id)
-                    .where(col(ActivityEvent.event_type) == "task.assignee_woken"),
+                    .where(col(ActivityEvent.event_type) == "task.assignee_wake_requested"),
                 )
             ).all()
             assert len(wake_events) == 1

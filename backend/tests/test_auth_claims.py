@@ -8,8 +8,8 @@ from typing import Any
 
 import pytest
 
-from app.core import auth
-from app.models.users import User
+from app.infrastructure.auth import clerk_local_auth as auth
+from app.infrastructure.models.users import User
 
 
 @dataclass

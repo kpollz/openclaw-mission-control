@@ -10,8 +10,8 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Field, SQLModel
 
-from app.db import crud
-from app.db import session as db_session
+from app.infrastructure.database import crud
+from app.infrastructure.database import engine as db_session
 
 
 class _Thing(SQLModel, table=True):

@@ -7,8 +7,8 @@ from uuid import uuid4
 
 import pytest
 
-from app.models.tags import Tag
-from app.services import tags
+from app.infrastructure.models.tags import Tag
+from app.application.use_cases.tags import service as tags
 
 
 @dataclass

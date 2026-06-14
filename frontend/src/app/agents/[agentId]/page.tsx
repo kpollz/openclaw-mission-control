@@ -13,16 +13,16 @@ import {
   type getAgentApiV1AgentsAgentIdGetResponse,
   useDeleteAgentApiV1AgentsAgentIdDelete,
   useGetAgentApiV1AgentsAgentIdGet,
-  useResendTokenApiV1AgentsAgentIdResendTokenPost,
+  useResendAgentTokenApiV1AgentsAgentIdResendTokenPost,
 } from "@/api/generated/agents/agents";
 import {
   type listActivityApiV1ActivityGetResponse,
   useListActivityApiV1ActivityGet,
 } from "@/api/generated/activity/activity";
 import {
-  type listBoardsApiV1BoardsGetResponse,
-  useListBoardsApiV1BoardsGet,
-} from "@/api/generated/boards/boards";
+  type listProjectsApiV1ProjectsGetResponse,
+  useListProjectsApiV1ProjectsGet,
+} from "@/api/generated/projects/projects";
 import {
   formatRelativeTimestamp as formatRelative,
   formatTimestamp,
@@ -31,7 +31,7 @@ import { useOrganizationMembership } from "@/lib/use-organization-membership";
 import type {
   ActivityEventRead,
   AgentRead,
-  BoardRead,
+  ProjectRead,
 } from "@/api/generated/model";
 import { Markdown } from "@/components/atoms/Markdown";
 import { StatusPill } from "@/components/atoms/StatusPill";
@@ -89,8 +89,8 @@ export default function AgentDetailPage() {
     },
   );
 
-  const boardsQuery = useListBoardsApiV1BoardsGet<
-    listBoardsApiV1BoardsGetResponse,
+  const boardsQuery = useListProjectsApiV1ProjectsGet<
+    listProjectsApiV1ProjectsGetResponse,
     ApiError
   >(undefined, {
     query: {
@@ -107,7 +107,7 @@ export default function AgentDetailPage() {
     if (activityQuery.data?.status !== 200) return [];
     return activityQuery.data.data.items ?? [];
   }, [activityQuery.data]);
-  const boards = useMemo<BoardRead[]>(() => {
+  const boards = useMemo<ProjectRead[]>(() => {
     if (boardsQuery.data?.status !== 200) return [];
     return boardsQuery.data.data.items ?? [];
   }, [boardsQuery.data]);
@@ -116,10 +116,10 @@ export default function AgentDetailPage() {
     if (!agent) return [];
     return events.filter((event) => event.agent_id === agent.id);
   }, [events, agent]);
-  const linkedBoard =
-    !agent?.board_id || agent?.is_gateway_main
+  const linkedProject =
+    !agent?.project_id || agent?.is_gateway_main
       ? null
-      : (boards.find((board) => board.id === agent.board_id) ?? null);
+      : (boards.find((board) => board.id === agent.project_id) ?? null);
 
   const deleteMutation = useDeleteAgentApiV1AgentsAgentIdDelete<ApiError>({
     mutation: {
@@ -133,23 +133,28 @@ export default function AgentDetailPage() {
     },
   });
 
-  const resendTokenMutation = useResendTokenApiV1AgentsAgentIdResendTokenPost({
-    mutation: {
-      onSuccess: (result) => {
-        const data = result.data as { success: boolean; message: string };
-        if (data.success) {
-          setResendError(null);
-          setResendSuccess(true);
-          agentQuery.refetch();
-        } else {
-          setResendError(data.message || "Token resend failed.");
-        }
+  const resendTokenMutation =
+    useResendAgentTokenApiV1AgentsAgentIdResendTokenPost<ApiError>({
+      mutation: {
+        onSuccess: (result) => {
+          if (result.status !== 200) {
+            setResendError("Token resend failed.");
+            return;
+          }
+          const data = result.data;
+          if (data.success) {
+            setResendError(null);
+            setResendSuccess(true);
+            agentQuery.refetch();
+          } else {
+            setResendError(data.message || "Token resend failed.");
+          }
+        },
+        onError: (err) => {
+          setResendError(err.message || "Token resend failed.");
+        },
       },
-      onError: (err) => {
-        setResendError(err.message || "Token resend failed.");
-      },
-    },
-  });
+    });
 
   const isLoading =
     agentQuery.isLoading || activityQuery.isLoading || boardsQuery.isLoading;
@@ -274,18 +279,18 @@ export default function AgentDetailPage() {
                       </div>
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-quiet">
-                          Board
+                          Project
                         </p>
                         {agent.is_gateway_main ? (
                           <p className="mt-1 text-sm text-strong">
-                            Gateway main (no board)
+                            Gateway main (no project)
                           </p>
-                        ) : linkedBoard ? (
+                        ) : linkedProject ? (
                           <Link
-                            href={`/boards/${linkedBoard.id}`}
+                            href={`/projects/${linkedProject.id}`}
                             className="mt-1 inline-flex text-sm font-medium text-[color:var(--accent)] transition hover:underline"
                           >
-                            {linkedBoard.name}
+                            {linkedProject.name}
                           </Link>
                         ) : (
                           <p className="mt-1 text-sm text-strong">—</p>

@@ -8,6 +8,5 @@ import type { DashboardMetricsApiV1MetricsDashboardGetRangeKey } from "./dashboa
 
 export type DashboardMetricsApiV1MetricsDashboardGetParams = {
   range_key?: DashboardMetricsApiV1MetricsDashboardGetRangeKey;
-  board_id?: string | null;
-  group_id?: string | null;
+  project_id?: string | null;
 };

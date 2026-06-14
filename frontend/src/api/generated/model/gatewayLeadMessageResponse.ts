@@ -9,14 +9,14 @@
  * Response payload for a lead-message dispatch attempt.
  */
 export interface GatewayLeadMessageResponse {
-  /** Board receiving the message. */
-  board_id: string;
+  /** Whether dispatch was accepted. */
+  ok?: boolean;
+  /** Project receiving the message. */
+  project_id: string;
   /** Resolved lead agent id when present. */
   lead_agent_id?: string | null;
   /** Resolved lead agent display name. */
   lead_agent_name?: string | null;
   /** Whether a lead fallback actor was created during routing. */
   lead_created?: boolean;
-  /** Whether dispatch was accepted. */
-  ok?: boolean;
 }

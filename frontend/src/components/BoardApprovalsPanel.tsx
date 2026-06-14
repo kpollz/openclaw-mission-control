@@ -11,10 +11,10 @@ import { Cell, Pie, PieChart } from "recharts";
 
 import { ApiError } from "@/api/mutator";
 import {
-  type listApprovalsApiV1BoardsBoardIdApprovalsGetResponse,
-  getListApprovalsApiV1BoardsBoardIdApprovalsGetQueryKey,
-  useListApprovalsApiV1BoardsBoardIdApprovalsGet,
-  useUpdateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatch,
+  type listApprovalsApiV1ProjectsProjectIdApprovalsGetResponse,
+  getListApprovalsApiV1ProjectsProjectIdApprovalsGetQueryKey,
+  useListApprovalsApiV1ProjectsProjectIdApprovalsGet,
+  useUpdateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatch,
 } from "@/api/generated/approvals/approvals";
 import type { ApprovalRead } from "@/api/generated/model";
 import { StatusDot } from "@/components/atoms/StatusDot";
@@ -42,7 +42,7 @@ const normalizeApproval = (approval: ApprovalRead): Approval => ({
 });
 
 type BoardApprovalsPanelProps = {
-  boardId: string;
+  projectId: string;
   approvals?: ApprovalRead[];
   isLoading?: boolean;
   error?: string | null;
@@ -343,8 +343,8 @@ const approvalRelatedTasks = (approval: Approval): RelatedTaskSummary[] => {
   });
 };
 
-const taskHref = (boardId: string, taskId: string) =>
-  `/boards/${encodeURIComponent(boardId)}?taskId=${encodeURIComponent(taskId)}`;
+const taskHref = (projectId: string, taskId: string) =>
+  `/projects/${encodeURIComponent(projectId)}?taskId=${encodeURIComponent(taskId)}`;
 
 /**
  * Create a small, human-readable summary of an approval request.
@@ -391,7 +391,7 @@ const approvalSummary = (approval: Approval, boardLabel?: string | null) => {
 };
 
 export function BoardApprovalsPanel({
-  boardId,
+  projectId,
   approvals: externalApprovals,
   isLoading: externalLoading,
   error: externalError,
@@ -406,16 +406,16 @@ export function BoardApprovalsPanel({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const usingExternal = Array.isArray(externalApprovals);
   const approvalsKey = useMemo(
-    () => getListApprovalsApiV1BoardsBoardIdApprovalsGetQueryKey(boardId),
-    [boardId],
+    () => getListApprovalsApiV1ProjectsProjectIdApprovalsGetQueryKey(projectId),
+    [projectId],
   );
 
-  const approvalsQuery = useListApprovalsApiV1BoardsBoardIdApprovalsGet<
-    listApprovalsApiV1BoardsBoardIdApprovalsGetResponse,
+  const approvalsQuery = useListApprovalsApiV1ProjectsProjectIdApprovalsGet<
+    listApprovalsApiV1ProjectsProjectIdApprovalsGetResponse,
     ApiError
-  >(boardId, undefined, {
+  >(projectId, undefined, {
     query: {
-      enabled: Boolean(!usingExternal && isSignedIn && boardId),
+      enabled: Boolean(!usingExternal && isSignedIn && projectId),
       refetchInterval: 15_000,
       refetchOnMount: "always",
       retry: false,
@@ -423,7 +423,7 @@ export function BoardApprovalsPanel({
   });
 
   const updateApprovalMutation =
-    useUpdateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatch<ApiError>();
+    useUpdateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatch<ApiError>();
 
   const approvals = useMemo(() => {
     const raw = usingExternal
@@ -460,16 +460,16 @@ export function BoardApprovalsPanel({
         return;
       }
       if (usingExternal) return;
-      if (!isSignedIn || !boardId) return;
+      if (!isSignedIn || !projectId) return;
       setUpdatingId(approvalId);
       setError(null);
 
       updateApprovalMutation.mutate(
-        { boardId, approvalId, data: { status } },
+        { projectId, approvalId, data: { status } },
         {
           onSuccess: (result) => {
             if (result.status !== 200) return;
-            queryClient.setQueryData<listApprovalsApiV1BoardsBoardIdApprovalsGetResponse>(
+            queryClient.setQueryData<listApprovalsApiV1ProjectsProjectIdApprovalsGetResponse>(
               approvalsKey,
               (previous) => {
                 if (!previous || previous.status !== 200) return previous;
@@ -498,7 +498,7 @@ export function BoardApprovalsPanel({
     [
       approvals,
       approvalsKey,
-      boardId,
+      projectId,
       isSignedIn,
       onDecision,
       queryClient,
@@ -605,7 +605,7 @@ export function BoardApprovalsPanel({
               {orderedApprovals.map((approval) => {
                 const summary = approvalSummary(
                   approval,
-                  boardLabelById?.[approval.board_id] ?? null,
+                  boardLabelById?.[approval.project_id] ?? null,
                 );
                 const isSelected = effectiveSelectedId === approval.id;
                 const isPending = approval.status === "pending";
@@ -692,7 +692,7 @@ export function BoardApprovalsPanel({
               (() => {
                 const summary = approvalSummary(
                   selectedApproval,
-                  boardLabelById?.[selectedApproval.board_id] ?? null,
+                  boardLabelById?.[selectedApproval.project_id] ?? null,
                 );
                 const titleRow = summary.rows.find(
                   (row) => row.label.toLowerCase() === "title",
@@ -863,7 +863,7 @@ export function BoardApprovalsPanel({
                             <Link
                               key={`${selectedApproval.id}-task-${task.id}`}
                               href={taskHref(
-                                selectedApproval.board_id,
+                                selectedApproval.project_id,
                                 task.id,
                               )}
                               className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 underline-offset-2 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 hover:underline"

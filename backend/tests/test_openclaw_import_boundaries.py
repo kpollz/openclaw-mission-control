@@ -27,6 +27,6 @@ def test_no_openclaw_package_barrel_imports() -> None:
 
     assert not violations, (
         "Use concrete OpenClaw modules (for example "
-        "`from app.services.openclaw.provisioning_db import ...`) instead of package imports. "
+        "`from app.application.use_cases.agents.provisioning_db import ...`) instead of package imports. "
         f"Violations: {', '.join(violations)}"
     )

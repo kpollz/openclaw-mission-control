@@ -1,5 +1,5 @@
 # ruff: noqa: S101
-"""Validation tests for gateway-main-agent requirements on board mutations."""
+"""Validation tests for gateway-main-agent requirements on project mutations."""
 
 from __future__ import annotations
 
@@ -10,10 +10,11 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi import HTTPException
 
-from app.api import boards
-from app.models.boards import Board
-from app.models.gateways import Gateway
-from app.schemas.boards import BoardUpdate
+from app.application.use_cases.projects.service import ProjectService, _ERR_GATEWAY_MAIN_AGENT_REQUIRED
+from app.infrastructure.models.projects import Project
+from app.infrastructure.models.gateways import Gateway
+from app.presentation.schemas.projects import ProjectUpdate
+from app.infrastructure.database import crud
 
 
 def _gateway(*, organization_id: UUID) -> Gateway:
@@ -58,12 +59,13 @@ async def test_require_gateway_rejects_when_gateway_has_no_main_agent(
     async def _fake_get_by_id(_session: object, _model: object, _gateway_id: object) -> Gateway:
         return gateway
 
-    monkeypatch.setattr(boards.crud, "get_by_id", _fake_get_by_id)
-    monkeypatch.setattr(boards.Agent, "objects", fake_objects)
+    from app.infrastructure.models import agents
+    monkeypatch.setattr(crud, "get_by_id", _fake_get_by_id)
+    monkeypatch.setattr(agents.Agent, "objects", fake_objects)
 
+    svc = ProjectService(session=object())  # type: ignore[arg-type]
     with pytest.raises(HTTPException) as exc_info:
-        await boards._require_gateway(
-            session=object(),  # type: ignore[arg-type]
+        await svc.require_gateway(
             gateway_id=gateway.id,
             organization_id=organization_id,
         )
@@ -84,11 +86,12 @@ async def test_require_gateway_accepts_when_gateway_has_main_agent(
     async def _fake_get_by_id(_session: object, _model: object, _gateway_id: object) -> Gateway:
         return gateway
 
-    monkeypatch.setattr(boards.crud, "get_by_id", _fake_get_by_id)
-    monkeypatch.setattr(boards.Agent, "objects", fake_objects)
+    from app.infrastructure.models import agents
+    monkeypatch.setattr(crud, "get_by_id", _fake_get_by_id)
+    monkeypatch.setattr(agents.Agent, "objects", fake_objects)
 
-    resolved = await boards._require_gateway(
-        session=object(),  # type: ignore[arg-type]
+    svc = ProjectService(session=object())  # type: ignore[arg-type]
+    resolved = await svc.require_gateway(
         gateway_id=gateway.id,
         organization_id=organization_id,
     )
@@ -98,21 +101,21 @@ async def test_require_gateway_accepts_when_gateway_has_main_agent(
 
 
 @pytest.mark.asyncio
-async def test_apply_board_update_validates_current_gateway_main_agent(
+async def test_apply_project_update_validates_current_gateway_main_agent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    board = Board(
+    project = Project(
         id=uuid4(),
         organization_id=uuid4(),
         name="Platform",
         slug="platform",
         gateway_id=uuid4(),
     )
-    payload = BoardUpdate(name="Platform X")
+    payload = ProjectUpdate(name="Platform X")
     calls: list[UUID] = []
 
     async def _fake_require_gateway(
-        _session: object,
+        self: ProjectService,
         gateway_id: object,
         *,
         organization_id: UUID | None = None,
@@ -123,22 +126,22 @@ async def test_apply_board_update_validates_current_gateway_main_agent(
         calls.append(gateway_id)
         raise HTTPException(
             status_code=422,
-            detail=boards._ERR_GATEWAY_MAIN_AGENT_REQUIRED,
+            detail=_ERR_GATEWAY_MAIN_AGENT_REQUIRED,
         )
 
-    async def _fake_save(_session: object, _board: Board) -> Board:
-        return _board
+    async def _fake_save(_session: object, _project: Project) -> Project:
+        return _project
 
-    monkeypatch.setattr(boards, "_require_gateway", _fake_require_gateway)
-    monkeypatch.setattr(boards.crud, "save", _fake_save)
+    monkeypatch.setattr(ProjectService, "require_gateway", _fake_require_gateway)
+    monkeypatch.setattr(crud, "save", _fake_save)
 
+    svc = ProjectService(session=object())  # type: ignore[arg-type]
     with pytest.raises(HTTPException) as exc_info:
-        await boards._apply_board_update(
+        await svc.apply_project_update(
             payload=payload,
-            session=object(),  # type: ignore[arg-type]
-            board=board,
+            project=project,
         )
 
     assert exc_info.value.status_code == 422
-    assert exc_info.value.detail == boards._ERR_GATEWAY_MAIN_AGENT_REQUIRED
-    assert calls == [board.gateway_id]
+    assert exc_info.value.detail == _ERR_GATEWAY_MAIN_AGENT_REQUIRED
+    assert calls == [project.gateway_id]

@@ -1,5 +1,5 @@
 import type {
-  BoardRead,
+  ProjectRead,
   TaskCustomFieldDefinitionCreate,
   TaskCustomFieldDefinitionRead,
   TaskCustomFieldDefinitionUpdate,
@@ -27,13 +27,13 @@ export type NormalizedCustomFieldFormValues = {
   description: string | null;
   required: boolean;
   defaultValue: unknown | null;
-  boardIds: string[];
+  projectIds: string[];
 };
 
 type NormalizeCustomFieldFormInputArgs = {
   mode: CustomFieldFormMode;
   formState: CustomFieldFormState;
-  selectedBoardIds: Iterable<string>;
+  selectedProjectIds: Iterable<string>;
 };
 
 type NormalizeCustomFieldFormInputResult =
@@ -130,9 +130,9 @@ export const formatCustomFieldDefaultValue = (
 };
 
 export const filterBoardsBySearch = (
-  boards: BoardRead[],
+  boards: ProjectRead[],
   query: string,
-): BoardRead[] => {
+): ProjectRead[] => {
   const normalizedQuery = query.trim().toLowerCase();
   if (!normalizedQuery) return boards;
   return boards.filter(
@@ -145,19 +145,19 @@ export const filterBoardsBySearch = (
 export const normalizeCustomFieldFormInput = ({
   mode,
   formState,
-  selectedBoardIds,
+  selectedProjectIds,
 }: NormalizeCustomFieldFormInputArgs): NormalizeCustomFieldFormInputResult => {
   const trimmedFieldKey = formState.fieldKey.trim();
   const trimmedLabel = formState.label.trim();
   const trimmedValidationRegex = formState.validationRegex.trim();
-  const boardIds = Array.from(selectedBoardIds);
+  const projectIds = Array.from(selectedProjectIds);
 
   if (mode === "create" && !trimmedFieldKey) {
     return { value: null, error: "Field key is required." };
   }
   if (!trimmedLabel) return { value: null, error: "Label is required." };
-  if (boardIds.length === 0) {
-    return { value: null, error: "Select at least one board." };
+  if (projectIds.length === 0) {
+    return { value: null, error: "Select at least one project." };
   }
   if (
     trimmedValidationRegex &&
@@ -187,7 +187,7 @@ export const normalizeCustomFieldFormInput = ({
       description: formState.description.trim() || null,
       required: formState.required,
       defaultValue: parsedDefaultValue.value,
-      boardIds,
+      projectIds,
     },
     error: null,
   };
@@ -204,7 +204,7 @@ export const createCustomFieldPayload = (
   description: values.description,
   required: values.required,
   default_value: values.defaultValue,
-  board_ids: values.boardIds,
+  project_ids: values.projectIds,
 });
 
 export const buildCustomFieldUpdatePayload = (
@@ -237,10 +237,10 @@ export const buildCustomFieldUpdatePayload = (
     updates.default_value = values.defaultValue;
   }
 
-  const currentBoardIds = [...(field.board_ids ?? [])].sort();
-  const nextBoardIds = [...values.boardIds].sort();
-  if (!areSortedStringArraysEqual(currentBoardIds, nextBoardIds)) {
-    updates.board_ids = values.boardIds;
+  const currentProjectIds = [...(field.project_ids ?? [])].sort();
+  const nextProjectIds = [...values.projectIds].sort();
+  if (!areSortedStringArraysEqual(currentProjectIds, nextProjectIds)) {
+    updates.project_ids = values.projectIds;
   }
 
   return updates;

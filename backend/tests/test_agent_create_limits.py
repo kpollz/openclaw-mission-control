@@ -1,5 +1,5 @@
 # ruff: noqa: S101
-"""Unit tests for board worker-agent spawn limits."""
+"""Unit tests for project worker-agent spawn limits."""
 
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi import HTTPException, status
 
-import app.services.openclaw.provisioning_db as agent_service
-from app.schemas.agents import AgentCreate
+import app.application.use_cases.agents.provisioning_db as agent_service
+from app.presentation.schemas.agents import AgentCreate
 
 
 @dataclass
@@ -21,7 +21,7 @@ class _FakeSession:
 
 
 @dataclass
-class _BoardStub:
+class _ProjectStub:
     id: UUID
     gateway_id: UUID
     max_agents: int
@@ -30,34 +30,34 @@ class _BoardStub:
 @dataclass
 class _AgentStub:
     id: UUID
-    board_id: UUID | None
-    is_board_lead: bool
+    project_id: UUID | None
+    is_project_lead: bool
 
 
 @pytest.mark.asyncio
-async def test_create_agent_as_lead_enforces_board_max_agents(
+async def test_create_agent_as_lead_enforces_project_max_agents(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     service = agent_service.AgentLifecycleService(_FakeSession())  # type: ignore[arg-type]
 
-    board_id = uuid4()
-    board = _BoardStub(id=board_id, gateway_id=uuid4(), max_agents=1)
-    lead = _AgentStub(id=uuid4(), board_id=board_id, is_board_lead=True)
+    project_id = uuid4()
+    project = _ProjectStub(id=project_id, gateway_id=uuid4(), max_agents=1)
+    lead = _AgentStub(id=uuid4(), project_id=project_id, is_project_lead=True)
     actor = SimpleNamespace(actor_type="agent", user=None, agent=lead)
-    payload = AgentCreate(name="Worker Agent", board_id=board_id)
+    payload = AgentCreate(name="Worker Agent", project_id=project_id)
 
-    async def _fake_require_board(*_args: object, **_kwargs: object) -> _BoardStub:
-        return board
+    async def _fake_require_project(*_args: object, **_kwargs: object) -> _ProjectStub:
+        return project
 
-    async def _fake_count_non_lead_agents_for_board(*, board_id: UUID) -> int:
-        assert board_id == board.id
+    async def _fake_count_non_lead_agents_for_project(*, project_id: UUID) -> int:
+        assert project_id == project.id
         return 1
 
-    monkeypatch.setattr(service, "require_board", _fake_require_board)
+    monkeypatch.setattr(service, "require_project", _fake_require_project)
     monkeypatch.setattr(
         service,
-        "count_non_lead_agents_for_board",
-        _fake_count_non_lead_agents_for_board,
+        "count_non_lead_agents_for_project",
+        _fake_count_non_lead_agents_for_project,
     )
 
     with pytest.raises(HTTPException) as exc_info:

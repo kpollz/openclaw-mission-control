@@ -1,3 +1,5 @@
+# ruff: noqa: INP001, S101
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -5,9 +7,9 @@ from uuid import uuid4
 
 import pytest
 
-from app.api.tasks import _coerce_task_event_rows, _task_event_payload
-from app.models.activity_events import ActivityEvent
-from app.models.tasks import Task
+from app.presentation.api.tasks import _coerce_task_event_rows, _task_event_payload
+from app.infrastructure.models.activity_events import ActivityEvent
+from app.infrastructure.models.tasks import Task
 
 
 @dataclass
@@ -31,7 +33,7 @@ def _make_event() -> ActivityEvent:
 
 
 def _make_task() -> Task:
-    return Task(board_id=uuid4(), title="T")
+    return Task(project_id=uuid4(), title="T")
 
 
 def test_coerce_task_event_rows_accepts_plain_tuple():
@@ -54,7 +56,7 @@ def test_coerce_task_event_rows_rejects_invalid_values():
 
 
 def test_task_event_payload_includes_activity_for_comment_event() -> None:
-    task = Task(board_id=uuid4(), title="Ship patch")
+    task = Task(project_id=uuid4(), title="Ship patch")
     event = ActivityEvent(
         event_type="task.comment",
         message="Looks good.",
@@ -78,6 +80,7 @@ def test_task_event_payload_includes_activity_for_comment_event() -> None:
         "agent_id": str(event.agent_id),
         "task_id": str(task.id),
         "created_at": event.created_at.isoformat(),
+        "payload": None,
     }
     comment = payload["comment"]
     assert isinstance(comment, dict)
@@ -87,7 +90,7 @@ def test_task_event_payload_includes_activity_for_comment_event() -> None:
 
 
 def test_task_event_payload_includes_activity_for_non_comment_event() -> None:
-    task = Task(board_id=uuid4(), title="Wire stream events", status="in_progress")
+    task = Task(project_id=uuid4(), title="Wire stream events", status="in_progress")
     event = ActivityEvent(
         event_type="task.updated",
         message="Task updated: Wire stream events.",
@@ -110,6 +113,7 @@ def test_task_event_payload_includes_activity_for_non_comment_event() -> None:
         "agent_id": None,
         "task_id": str(task.id),
         "created_at": event.created_at.isoformat(),
+        "payload": None,
     }
     task_payload = payload["task"]
     assert isinstance(task_payload, dict)

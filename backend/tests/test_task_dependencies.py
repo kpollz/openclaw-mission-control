@@ -7,7 +7,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from app.services import task_dependencies
+from app.domain.exceptions import DependencyCycleError, NotFoundError, ValidationError
+from app.domain.services import task_dependencies
 
 
 def test_dedupe_uuid_list_preserves_order_and_removes_duplicates():
@@ -60,7 +61,7 @@ def test_blocked_by_dependency_ids_flags_not_done_and_missing_status():
     ],
 )
 def test_has_cycle(nodes, edges, expected):
-    assert task_dependencies._has_cycle(nodes, edges) is expected
+    assert task_dependencies.has_cycle(nodes, edges) is expected
 
 
 @dataclass
@@ -90,7 +91,7 @@ async def test_dependency_ids_by_task_id_empty_short_circuit():
     session = _FakeSession(exec_results=[])
     result = await task_dependencies.dependency_ids_by_task_id(
         session,
-        board_id=uuid4(),
+        project_id=uuid4(),
         task_ids=[],
     )
     assert result == {}
@@ -106,7 +107,7 @@ async def test_dependency_ids_by_task_id_groups_rows_by_task_id():
     session = _FakeSession(exec_results=[rows])
     result = await task_dependencies.dependency_ids_by_task_id(
         session,
-        board_id=uuid4(),
+        project_id=uuid4(),
         task_ids=[task_id],
     )
     assert result == {task_id: [dep1, dep2]}
@@ -117,7 +118,7 @@ async def test_dependency_status_by_id_empty_short_circuit():
     session = _FakeSession(exec_results=[])
     result = await task_dependencies.dependency_status_by_id(
         session,
-        board_id=uuid4(),
+        project_id=uuid4(),
         dependency_ids=[],
     )
     assert result == {}
@@ -129,7 +130,7 @@ async def test_dependency_status_by_id_maps_rows():
     session = _FakeSession(exec_results=[[(dep, "done")]])
     result = await task_dependencies.dependency_status_by_id(
         session,
-        board_id=uuid4(),
+        project_id=uuid4(),
         dependency_ids=[dep],
     )
     assert result == {dep: "done"}
@@ -137,14 +138,14 @@ async def test_dependency_status_by_id_maps_rows():
 
 @pytest.mark.asyncio
 async def test_blocked_by_for_task_uses_passed_dependency_ids():
-    board_id = uuid4()
+    project_id = uuid4()
     dep1 = uuid4()
     dep2 = uuid4()
 
     session = _FakeSession(exec_results=[[(dep1, "done"), (dep2, "inbox")]])
     blocked = await task_dependencies.blocked_by_for_task(
         session,
-        board_id=board_id,
+        project_id=project_id,
         task_id=uuid4(),
         dependency_ids=[dep1, dep2],
     )
@@ -153,7 +154,7 @@ async def test_blocked_by_for_task_uses_passed_dependency_ids():
 
 @pytest.mark.asyncio
 async def test_blocked_by_for_task_fetches_dependency_ids_when_not_provided():
-    board_id = uuid4()
+    project_id = uuid4()
     task_id = uuid4()
     dep = uuid4()
 
@@ -163,7 +164,7 @@ async def test_blocked_by_for_task_fetches_dependency_ids_when_not_provided():
 
     blocked = await task_dependencies.blocked_by_for_task(
         session,
-        board_id=board_id,
+        project_id=project_id,
         task_id=task_id,
         dependency_ids=None,
     )
@@ -172,14 +173,14 @@ async def test_blocked_by_for_task_fetches_dependency_ids_when_not_provided():
 
 @pytest.mark.asyncio
 async def test_blocked_by_for_task_returns_empty_when_no_deps():
-    board_id = uuid4()
+    project_id = uuid4()
     task_id = uuid4()
 
     # dependency_ids_by_task_id -> empty rows => no deps
     session = _FakeSession(exec_results=[[]])
     blocked = await task_dependencies.blocked_by_for_task(
         session,
-        board_id=board_id,
+        project_id=project_id,
         task_id=task_id,
         dependency_ids=None,
     )
@@ -191,7 +192,7 @@ async def test_validate_dependency_update_returns_empty_when_no_dependencies():
     session = _FakeSession(exec_results=[])
     result = await task_dependencies.validate_dependency_update(
         session,
-        board_id=uuid4(),
+        project_id=uuid4(),
         task_id=uuid4(),
         depends_on_task_ids=[],
     )
@@ -203,48 +204,43 @@ async def test_validate_dependency_update_rejects_self_dependency():
     task_id = uuid4()
     session = _FakeSession(exec_results=[])
 
-    with pytest.raises(task_dependencies.HTTPException) as exc:
+    with pytest.raises(ValidationError):
         await task_dependencies.validate_dependency_update(
             session,
-            board_id=uuid4(),
+            project_id=uuid4(),
             task_id=task_id,
             depends_on_task_ids=[task_id],
         )
 
-    assert exc.value.status_code == 422
-
 
 @pytest.mark.asyncio
 async def test_validate_dependency_update_rejects_missing_dependency_tasks():
-    board_id = uuid4()
+    project_id = uuid4()
     task_id = uuid4()
     dep_id = uuid4()
 
     # existing_ids should not include dep_id
     session = _FakeSession(exec_results=[set()])
 
-    with pytest.raises(task_dependencies.HTTPException) as exc:
+    with pytest.raises(NotFoundError):
         await task_dependencies.validate_dependency_update(
             session,
-            board_id=board_id,
+            project_id=project_id,
             task_id=task_id,
             depends_on_task_ids=[dep_id],
         )
 
-    assert exc.value.status_code == 404
-    assert exc.value.detail["missing_task_ids"] == [str(dep_id)]
-
 
 @pytest.mark.asyncio
 async def test_validate_dependency_update_rejects_cycles(monkeypatch):
-    board_id = uuid4()
+    project_id = uuid4()
     task_a = uuid4()
     task_b = uuid4()
 
     # existing_ids contains dependency
     existing_ids = {task_b}
 
-    # task_ids list on board
+    # task_ids list on project
     all_task_ids = [task_a, task_b]
 
     # existing edges: B depends on A, then set A depends on B => cycle
@@ -252,20 +248,18 @@ async def test_validate_dependency_update_rejects_cycles(monkeypatch):
 
     session = _FakeSession(exec_results=[existing_ids, all_task_ids, existing_edges])
 
-    with pytest.raises(task_dependencies.HTTPException) as exc:
+    with pytest.raises(DependencyCycleError):
         await task_dependencies.validate_dependency_update(
             session,
-            board_id=board_id,
+            project_id=project_id,
             task_id=task_a,
             depends_on_task_ids=[task_b],
         )
 
-    assert exc.value.status_code == 409
-
 
 @pytest.mark.asyncio
 async def test_validate_dependency_update_returns_deduped_ids_when_ok():
-    board_id = uuid4()
+    project_id = uuid4()
     task_id = uuid4()
     dep1 = uuid4()
     dep2 = uuid4()
@@ -278,7 +272,7 @@ async def test_validate_dependency_update_returns_deduped_ids_when_ok():
 
     normalized = await task_dependencies.validate_dependency_update(
         session,
-        board_id=board_id,
+        project_id=project_id,
         task_id=task_id,
         depends_on_task_ids=[dep1, dep2, dep1],
     )
@@ -288,7 +282,9 @@ async def test_validate_dependency_update_returns_deduped_ids_when_ok():
 
 @pytest.mark.asyncio
 async def test_replace_task_dependencies_deletes_then_adds(monkeypatch):
-    board_id = uuid4()
+    from app.infrastructure.persistence.task_dependency_repository import TaskDependencyRepository
+
+    project_id = uuid4()
     task_id = uuid4()
     dep1 = uuid4()
     dep2 = uuid4()
@@ -296,12 +292,13 @@ async def test_replace_task_dependencies_deletes_then_adds(monkeypatch):
     async def _fake_validate(*_args, **_kwargs):
         return [dep1, dep2]
 
-    monkeypatch.setattr(task_dependencies, "validate_dependency_update", _fake_validate)
+    # repo.replace_task_dependencies calls self.validate_dependency_update internally
+    monkeypatch.setattr(TaskDependencyRepository, "validate_dependency_update", _fake_validate)
 
     session = _FakeSession(exec_results=[])
     normalized = await task_dependencies.replace_task_dependencies(
         session,
-        board_id=board_id,
+        project_id=project_id,
         task_id=task_id,
         depends_on_task_ids=[dep1, dep2],
     )
@@ -313,14 +310,14 @@ async def test_replace_task_dependencies_deletes_then_adds(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_dependent_task_ids_returns_rows_as_list():
-    board_id = uuid4()
+    project_id = uuid4()
     dep_task_id = uuid4()
     dependent_id = uuid4()
 
     session = _FakeSession(exec_results=[[dependent_id]])
     result = await task_dependencies.dependent_task_ids(
         session,
-        board_id=board_id,
+        project_id=project_id,
         dependency_task_id=dep_task_id,
     )
     assert result == [dependent_id]

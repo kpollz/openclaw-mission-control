@@ -8,11 +8,11 @@ from uuid import UUID, uuid4
 
 import pytest
 
-import app.services.openclaw.internal.agent_key as agent_key_mod
-import app.services.openclaw.provisioning as agent_provisioning
-from app.services.openclaw.provisioning_db import AgentLifecycleService
-from app.services.openclaw.shared import GatewayAgentIdentity
-from app.services.souls_directory import SoulRef
+import app.infrastructure.gateway.internal.agent_key as agent_key_mod
+import app.infrastructure.gateway.provisioner as agent_provisioning
+from app.application.use_cases.agents.provisioning_db import AgentLifecycleService
+from app.infrastructure.gateway.shared import GatewayAgentIdentity
+from app.application.use_cases.souls_directory import SoulRef
 
 
 def test_slugify_normalizes_and_trims():
@@ -33,7 +33,7 @@ class _AgentStub:
     name: str
     openclaw_session_id: str | None = None
     heartbeat_config: dict | None = None
-    is_board_lead: bool = False
+    is_project_lead: bool = False
     id: UUID = field(default_factory=uuid4)
     identity_profile: dict | None = None
     identity_template: str | None = None
@@ -75,7 +75,7 @@ def test_templates_root_points_to_repo_templates_dir():
     root = agent_provisioning._templates_root()
     assert root.name == "templates"
     assert root.parent.name == "backend"
-    assert (root / "BOARD_AGENTS.md.j2").exists()
+    assert (root / "PROJECT_AGENTS.md.j2").exists()
 
 
 def test_user_context_uses_email_fallback_when_name_is_missing():
@@ -179,7 +179,7 @@ async def test_provision_main_agent_uses_dedicated_openclaw_agent_id(monkeypatch
     await agent_provisioning.OpenClawGatewayProvisioner().apply_agent_lifecycle(
         agent=agent,  # type: ignore[arg-type]
         gateway=gateway,  # type: ignore[arg-type]
-        board=None,
+        project=None,
         auth_token="secret-token",
         user=None,
         action="provision",
@@ -238,7 +238,7 @@ async def test_provision_overwrites_user_md_on_first_provision(monkeypatch):
         def _agent_id(self, agent):
             return "agent-x"
 
-        def _build_context(self, *, agent, auth_token, user, board):
+        def _build_context(self, *, agent, auth_token, user, project):
             return {}
 
     gateway = _GatewayTiny(
@@ -307,7 +307,7 @@ async def test_set_agent_files_update_preserves_user_md_even_when_size_zero():
         def _agent_id(self, agent):
             return "agent-x"
 
-        def _build_context(self, *, agent, auth_token, user, board):
+        def _build_context(self, *, agent, auth_token, user, project):
             return {}
 
     gateway = _GatewayTiny(
@@ -373,7 +373,7 @@ async def test_set_agent_files_update_preserves_nonmissing_user_md():
         def _agent_id(self, agent):
             return "agent-x"
 
-        def _build_context(self, *, agent, auth_token, user, board):
+        def _build_context(self, *, agent, auth_token, user, project):
             return {}
 
     gateway = _GatewayTiny(
@@ -439,7 +439,7 @@ async def test_set_agent_files_update_overwrite_writes_preserved_user_md():
         def _agent_id(self, agent):
             return "agent-x"
 
-        def _build_context(self, *, agent, auth_token, user, board):
+        def _build_context(self, *, agent, auth_token, user, project):
             return {}
 
     gateway = _GatewayTiny(
@@ -485,9 +485,9 @@ async def test_control_plane_upsert_agent_create_then_update(monkeypatch):
     )
     await cp.upsert_agent(
         agent_provisioning.GatewayAgentRegistration(
-            agent_id="board-agent-a",
-            name="Board Agent A",
-            workspace_path="/tmp/workspace-board-agent-a",
+            agent_id="project-agent-a",
+            name="Project Agent A",
+            workspace_path="/tmp/workspace-project-agent-a",
             heartbeat={"every": "10m", "target": "last", "includeReasoning": False},
         ),
     )
@@ -519,9 +519,9 @@ async def test_control_plane_upsert_agent_handles_already_exists(monkeypatch):
     )
     await cp.upsert_agent(
         agent_provisioning.GatewayAgentRegistration(
-            agent_id="board-agent-a",
-            name="Board Agent A",
-            workspace_path="/tmp/workspace-board-agent-a",
+            agent_id="project-agent-a",
+            name="Project Agent A",
+            workspace_path="/tmp/workspace-project-agent-a",
             heartbeat={"every": "10m", "target": "last", "includeReasoning": False},
         ),
     )
@@ -548,7 +548,7 @@ async def test_control_plane_upsert_agent_retries_update_after_create_race(monke
         if method == "agents.update":
             update_attempts += 1
             if update_attempts < 3:
-                raise agent_provisioning.OpenClawGatewayError('agent "board-agent-a" not found')
+                raise agent_provisioning.OpenClawGatewayError('agent "project-agent-a" not found')
             return {"ok": True}
         if method == "config.get":
             return {"hash": None, "config": {"agents": {"list": []}}}
@@ -563,9 +563,9 @@ async def test_control_plane_upsert_agent_retries_update_after_create_race(monke
     )
     await cp.upsert_agent(
         agent_provisioning.GatewayAgentRegistration(
-            agent_id="board-agent-a",
-            name="Board Agent A",
-            workspace_path="/tmp/workspace-board-agent-a",
+            agent_id="project-agent-a",
+            name="Project Agent A",
+            workspace_path="/tmp/workspace-project-agent-a",
             heartbeat={"every": "10m", "target": "last", "includeReasoning": False},
         ),
     )
@@ -589,7 +589,7 @@ async def test_control_plane_upsert_agent_missing_after_already_exists_fails_fas
         if method == "agents.create":
             raise agent_provisioning.OpenClawGatewayError("already exists")
         if method == "agents.update":
-            raise agent_provisioning.OpenClawGatewayError('agent "board-agent-a" not found')
+            raise agent_provisioning.OpenClawGatewayError('agent "project-agent-a" not found')
         raise AssertionError(f"Unexpected method: {method}")
 
     monkeypatch.setattr(agent_provisioning, "openclaw_call", _fake_openclaw_call)
@@ -601,9 +601,9 @@ async def test_control_plane_upsert_agent_missing_after_already_exists_fails_fas
     with pytest.raises(agent_provisioning.OpenClawGatewayError):
         await cp.upsert_agent(
             agent_provisioning.GatewayAgentRegistration(
-                agent_id="board-agent-a",
-                name="Board Agent A",
-                workspace_path="/tmp/workspace-board-agent-a",
+                agent_id="project-agent-a",
+                name="Project Agent A",
+                workspace_path="/tmp/workspace-project-agent-a",
                 heartbeat={"every": "10m", "target": "last", "includeReasoning": False},
             ),
         )
@@ -709,9 +709,9 @@ async def test_delete_agent_lifecycle_ignores_missing_gateway_agent(monkeypatch)
     agent = SimpleNamespace(
         id=uuid4(),
         name="Worker",
-        board_id=uuid4(),
+        project_id=uuid4(),
         openclaw_session_id=None,
-        is_board_lead=False,
+        is_project_lead=False,
     )
     control_plane = _ControlPlaneStub()
     monkeypatch.setattr(agent_provisioning, "_control_plane_for_gateway", lambda _g: control_plane)
@@ -747,9 +747,9 @@ async def test_delete_agent_lifecycle_raises_on_non_missing_agent_error(monkeypa
     agent = SimpleNamespace(
         id=uuid4(),
         name="Worker",
-        board_id=uuid4(),
+        project_id=uuid4(),
         openclaw_session_id=None,
-        is_board_lead=False,
+        is_project_lead=False,
     )
     monkeypatch.setattr(
         agent_provisioning,

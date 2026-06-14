@@ -26,24 +26,24 @@ def test_openapi_agent_role_tags_are_exposed() -> None:
 
     assert "agent-lead" in _op_tags(
         schema,
-        path="/api/v1/agent/boards/{board_id}/tasks",
+        path="/api/v1/agent/projects/{project_id}/tasks",
         method="post",
     )
     assert "agent-worker" in _op_tags(
         schema,
-        path="/api/v1/agent/boards/{board_id}/tasks",
+        path="/api/v1/agent/projects/{project_id}/tasks",
         method="get",
     )
     assert "agent-main" in _op_tags(
         schema,
-        path="/api/v1/agent/boards",
+        path="/api/v1/agent/projects",
         method="get",
     )
     health_tags = _op_tags(schema, path="/api/v1/agent/healthz", method="get")
     assert {"agent-lead", "agent-worker", "agent-main"} <= health_tags
     assert "agent-main" in _op_tags(
         schema,
-        path="/api/v1/agent/boards/{board_id}",
+        path="/api/v1/agent/projects/{project_id}",
         method="get",
     )
     assert "agent-main" in _op_tags(
@@ -58,13 +58,13 @@ def test_openapi_agent_role_tags_are_exposed() -> None:
     )
     assert "agent-worker" in _op_tags(
         schema,
-        path="/api/v1/boards/{board_id}/group-memory",
+        path="/api/v1/agent/projects/{project_id}/tasks",
         method="get",
     )
     assert "agent-lead" in _op_tags(
         schema,
-        path="/api/v1/boards/{board_id}/group-snapshot",
-        method="get",
+        path="/api/v1/agent/projects/{project_id}/tasks",
+        method="post",
     )
     heartbeat_tags = _op_tags(schema, path="/api/v1/agent/heartbeat", method="post")
     assert {"agent-lead", "agent-worker", "agent-main"} <= heartbeat_tags
@@ -76,12 +76,12 @@ def test_openapi_agent_role_endpoint_descriptions_exist() -> None:
 
     assert _op_description(
         schema,
-        path="/api/v1/agent/boards/{board_id}/tasks",
+        path="/api/v1/agent/projects/{project_id}/tasks",
         method="post",
     )
     assert _op_description(
         schema,
-        path="/api/v1/agent/boards/{board_id}/tasks/{task_id}",
+        path="/api/v1/agent/projects/{project_id}/tasks/{task_id}",
         method="patch",
     )
     assert _op_description(
@@ -91,13 +91,13 @@ def test_openapi_agent_role_endpoint_descriptions_exist() -> None:
     )
     assert _op_description(
         schema,
-        path="/api/v1/boards/{board_id}/group-memory",
+        path="/api/v1/agent/projects/{project_id}/memory",
         method="get",
     )
     assert _op_description(
         schema,
-        path="/api/v1/boards/{board_id}/group-snapshot",
-        method="get",
+        path="/api/v1/agent/projects/{project_id}/tasks",
+        method="post",
     )
 
 
@@ -114,32 +114,29 @@ def test_openapi_agent_tool_endpoints_include_llm_hints() -> None:
     op_ids: set[str] = set()
 
     expected_paths = [
-        ("/api/v1/agent/boards", "get"),
+        ("/api/v1/agent/projects", "get"),
         ("/api/v1/agent/healthz", "get"),
-        ("/api/v1/agent/boards/{board_id}", "get"),
+        ("/api/v1/agent/projects/{project_id}", "get"),
         ("/api/v1/agent/agents", "get"),
         ("/api/v1/agent/heartbeat", "post"),
-        ("/api/v1/agent/boards/{board_id}/tasks", "post"),
-        ("/api/v1/agent/boards/{board_id}/tasks", "get"),
-        ("/api/v1/agent/boards/{board_id}/tags", "get"),
-        ("/api/v1/agent/boards/{board_id}/tasks/{task_id}", "patch"),
-        ("/api/v1/agent/boards/{board_id}/tasks/{task_id}/comments", "get"),
-        ("/api/v1/agent/boards/{board_id}/tasks/{task_id}/comments", "post"),
-        ("/api/v1/agent/boards/{board_id}/memory", "get"),
-        ("/api/v1/agent/boards/{board_id}/memory", "post"),
-        ("/api/v1/boards/{board_id}/group-memory", "get"),
-        ("/api/v1/boards/{board_id}/group-memory", "post"),
-        ("/api/v1/boards/{board_id}/group-memory/stream", "get"),
-        ("/api/v1/agent/boards/{board_id}/approvals", "get"),
-        ("/api/v1/agent/boards/{board_id}/approvals", "post"),
-        ("/api/v1/agent/boards/{board_id}/onboarding", "post"),
-        ("/api/v1/agent/boards/{board_id}/agents/{agent_id}/soul", "get"),
+        ("/api/v1/agent/projects/{project_id}/tasks", "post"),
+        ("/api/v1/agent/projects/{project_id}/tasks", "get"),
+        ("/api/v1/agent/projects/{project_id}/tags", "get"),
+        ("/api/v1/agent/projects/{project_id}/tasks/{task_id}", "patch"),
+        ("/api/v1/agent/projects/{project_id}/tasks/{task_id}/comments", "get"),
+        ("/api/v1/agent/projects/{project_id}/tasks/{task_id}/comments", "post"),
+        ("/api/v1/agent/projects/{project_id}/memory", "get"),
+        ("/api/v1/agent/projects/{project_id}/memory", "post"),
+        ("/api/v1/agent/projects/{project_id}/approvals", "get"),
+        ("/api/v1/agent/projects/{project_id}/approvals", "post"),
+        ("/api/v1/agent/projects/{project_id}/onboarding", "post"),
+        ("/api/v1/agent/projects/{project_id}/agents/{agent_id}/soul", "get"),
         ("/api/v1/agent/agents", "post"),
-        ("/api/v1/agent/boards/{board_id}/agents/{agent_id}/nudge", "post"),
-        ("/api/v1/agent/boards/{board_id}/agents/{agent_id}/soul", "put"),
-        ("/api/v1/agent/boards/{board_id}/agents/{agent_id}", "delete"),
-        ("/api/v1/agent/boards/{board_id}/gateway/main/ask-user", "post"),
-        ("/api/v1/agent/gateway/boards/{board_id}/lead/message", "post"),
+        ("/api/v1/agent/projects/{project_id}/agents/{agent_id}/nudge", "post"),
+        ("/api/v1/agent/projects/{project_id}/agents/{agent_id}/soul", "put"),
+        ("/api/v1/agent/projects/{project_id}/agents/{agent_id}", "delete"),
+        ("/api/v1/agent/projects/{project_id}/gateway/main/ask-user", "post"),
+        ("/api/v1/agent/gateway/projects/{project_id}/lead/message", "post"),
         ("/api/v1/agent/gateway/leads/broadcast", "post"),
     ]
     for path, method in expected_paths:

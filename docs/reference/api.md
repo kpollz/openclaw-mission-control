@@ -60,7 +60,7 @@ Common patterns:
 
 - **User-only** endpoints: require an authenticated human user (not an agent). Organization-level admin checks are enforced separately where needed (`require_org_admin`).
 - **User or agent** endpoints: allow either an authenticated human user or an authenticated agent.
-- **Board-scoped access**: user/agent access may be restricted to a specific board.
+- **Project-scoped access**: user/agent access may be restricted to a specific project.
 
 > SOC2 note: the API produces an audit-friendly request id (see below), but role/permission policy should be documented per endpoint as we stabilize.
 
@@ -155,13 +155,13 @@ curl -f http://localhost:8000/healthz
 curl -s -X POST http://localhost:8000/api/v1/agent/heartbeat \
   -H "X-Agent-Token: $AUTH_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Tessa","board_id":"<board-id>","status":"online"}'
+  -d '{"name":"Tessa","project_id":"<project-id>","status":"online"}'
 ```
 
-### List tasks for a board
+### List tasks for a project
 
 ```bash
-curl -s "http://localhost:8000/api/v1/agent/boards/<board-id>/tasks?status=inbox&limit=10" \
+curl -s "http://localhost:8000/api/v1/agent/projects/<project-id>/tasks?status=inbox&limit=10" \
   -H "X-Agent-Token: $AUTH_TOKEN"
 ```
 
@@ -174,5 +174,5 @@ curl -s "http://localhost:8000/api/v1/agent/boards/<board-id>/tasks?status=inbox
 - Rate limits are documented above; consider exposing them via OpenAPI `x-ratelimit-*` extensions.
 - Add canonical examples for:
   - creating/updating tasks + comments
-  - board memory streaming
+  - project memory streaming
   - approvals workflow

@@ -2,7 +2,7 @@
 
 import hashlib
 
-from app.services.lead_policy import (
+from app.domain.services.lead_policy import (
     approval_required,
     compute_confidence,
     infer_planning,

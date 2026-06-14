@@ -5,7 +5,7 @@ from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.testclient import TestClient
 
-from app.core.security_headers import SecurityHeadersMiddleware
+from app.shared.security_headers import SecurityHeadersMiddleware
 
 
 @pytest.mark.asyncio

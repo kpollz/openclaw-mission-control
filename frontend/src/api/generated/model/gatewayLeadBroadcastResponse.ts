@@ -4,17 +4,17 @@
  * Mission Control API
  * OpenAPI spec version: 0.1.0
  */
-import type { GatewayLeadBroadcastBoardResult } from "./gatewayLeadBroadcastBoardResult";
+import type { GatewayLeadBroadcastProjectResult } from "./gatewayLeadBroadcastProjectResult";
 
 /**
  * Aggregate response for a lead broadcast operation.
  */
 export interface GatewayLeadBroadcastResponse {
-  /** Number of boards that failed messaging. */
-  failed?: number;
   /** Whether broadcast execution succeeded. */
   ok?: boolean;
-  results?: GatewayLeadBroadcastBoardResult[];
   /** Number of boards successfully messaged. */
   sent?: number;
+  /** Number of boards that failed messaging. */
+  failed?: number;
+  results?: GatewayLeadBroadcastProjectResult[];
 }

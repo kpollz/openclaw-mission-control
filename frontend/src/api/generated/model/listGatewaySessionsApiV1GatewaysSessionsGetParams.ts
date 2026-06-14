@@ -6,5 +6,5 @@
  */
 
 export type ListGatewaySessionsApiV1GatewaysSessionsGetParams = {
-  board_id?: string | null;
+  project_id?: string | null;
 };

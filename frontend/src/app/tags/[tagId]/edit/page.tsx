@@ -55,7 +55,7 @@ export default function EditTagPage() {
         signUpForceRedirectUrl: `/tags/${tagId ?? ""}/edit`,
       }}
       title={tag ? `Edit ${tag.name}` : "Edit tag"}
-      description="Update tag details used across task boards."
+      description="Update tag details used across task projects."
       isAdmin={isAdmin}
       adminOnlyMessage="Only organization owners and admins can manage tags."
     >

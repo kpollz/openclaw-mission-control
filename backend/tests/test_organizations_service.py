@@ -11,16 +11,16 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 
-from app.models.boards import Board
-from app.models.organization_board_access import OrganizationBoardAccess
-from app.models.organization_invite_board_access import OrganizationInviteBoardAccess
-from app.models.organization_invites import OrganizationInvite
-from app.models.organization_members import OrganizationMember
-from app.models.organizations import Organization
-from app.models.skills import SkillPack
-from app.models.users import User
-from app.schemas.organizations import OrganizationBoardAccessSpec, OrganizationMemberAccessUpdate
-from app.services import organizations
+from app.infrastructure.models.projects import Project
+from app.infrastructure.models.organization_project_access import OrganizationProjectAccess
+from app.infrastructure.models.organization_invite_project_access import OrganizationInviteProjectAccess
+from app.infrastructure.models.organization_invites import OrganizationInvite
+from app.infrastructure.models.organization_members import OrganizationMember
+from app.infrastructure.models.organizations import Organization
+from app.infrastructure.models.skills import SkillPack
+from app.infrastructure.models.users import User
+from app.presentation.schemas.organizations import OrganizationProjectAccessSpec, OrganizationMemberAccessUpdate
+from app.application.use_cases.organizations import service as organizations
 
 
 @dataclass
@@ -253,8 +253,8 @@ async def test_ensure_member_for_user_creates_personal_org_and_owner(
     out = await organizations.ensure_member_for_user(session, user)
     assert out.user_id == user.id
     assert out.role == "owner"
-    assert out.all_boards_read is True
-    assert out.all_boards_write is True
+    assert out.all_projects_read is True
+    assert out.all_projects_write is True
     assert out.organization_id == user.active_organization_id
     assert any(
         isinstance(item, Organization) and item.id == out.organization_id for item in session.added
@@ -407,15 +407,15 @@ async def test_ensure_member_for_user_reuses_existing_membership_after_lock(
 
 
 @pytest.mark.asyncio
-async def test_has_board_access_denies_cross_org() -> None:
+async def test_has_project_access_denies_cross_org() -> None:
     session = _FakeSession(exec_results=[])
     member = OrganizationMember(organization_id=uuid4(), user_id=uuid4(), role="member")
-    board = Board(id=uuid4(), organization_id=uuid4(), name="b", slug="b")
+    project = Project(id=uuid4(), organization_id=uuid4(), name="b", slug="b")
     assert (
-        await organizations.has_board_access(
+        await organizations.has_project_access(
             session,
             member=member,
-            board=board,
+            project=project,
             write=False,
         )
         is False
@@ -423,7 +423,7 @@ async def test_has_board_access_denies_cross_org() -> None:
 
 
 @pytest.mark.asyncio
-async def test_has_board_access_uses_org_board_access_row_read_and_write() -> None:
+async def test_has_project_access_uses_org_project_access_row_read_and_write() -> None:
     org_id = uuid4()
     member = OrganizationMember(
         id=uuid4(),
@@ -431,54 +431,54 @@ async def test_has_board_access_uses_org_board_access_row_read_and_write() -> No
         user_id=uuid4(),
         role="member",
     )
-    board = Board(id=uuid4(), organization_id=org_id, name="b", slug="b")
+    project = Project(id=uuid4(), organization_id=org_id, name="b", slug="b")
 
-    access = OrganizationBoardAccess(
+    access = OrganizationProjectAccess(
         organization_member_id=member.id,
-        board_id=board.id,
+        project_id=project.id,
         can_read=True,
         can_write=False,
     )
     session = _FakeSession(exec_results=[_FakeExecResult(first_value=access)])
     assert (
-        await organizations.has_board_access(
+        await organizations.has_project_access(
             session,
             member=member,
-            board=board,
+            project=project,
             write=False,
         )
         is True
     )
 
-    access2 = OrganizationBoardAccess(
+    access2 = OrganizationProjectAccess(
         organization_member_id=member.id,
-        board_id=board.id,
+        project_id=project.id,
         can_read=False,
         can_write=True,
     )
     session2 = _FakeSession(exec_results=[_FakeExecResult(first_value=access2)])
     assert (
-        await organizations.has_board_access(
+        await organizations.has_project_access(
             session2,
             member=member,
-            board=board,
+            project=project,
             write=False,
         )
         is True
     )
 
-    access3 = OrganizationBoardAccess(
+    access3 = OrganizationProjectAccess(
         organization_member_id=member.id,
-        board_id=board.id,
+        project_id=project.id,
         can_read=True,
         can_write=False,
     )
     session3 = _FakeSession(exec_results=[_FakeExecResult(first_value=access3)])
     assert (
-        await organizations.has_board_access(
+        await organizations.has_project_access(
             session3,
             member=member,
-            board=board,
+            project=project,
             write=True,
         )
         is False
@@ -486,11 +486,11 @@ async def test_has_board_access_uses_org_board_access_row_read_and_write() -> No
 
 
 @pytest.mark.asyncio
-async def test_require_board_access_raises_when_no_member(
+async def test_require_project_access_raises_when_no_member(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     user = User(clerk_user_id="u1")
-    board = Board(id=uuid4(), organization_id=uuid4(), name="b", slug="b")
+    project = Project(id=uuid4(), organization_id=uuid4(), name="b", slug="b")
 
     async def _fake_get_member(*_args: Any, **_kwargs: Any) -> None:
         return None
@@ -499,17 +499,17 @@ async def test_require_board_access_raises_when_no_member(
 
     session = _FakeSession(exec_results=[])
     with pytest.raises(HTTPException) as exc:
-        await organizations.require_board_access(
+        await organizations.require_project_access(
             session,
             user=user,
-            board=board,
+            project=project,
             write=False,
         )
     assert exc.value.status_code == 403
 
 
 @pytest.mark.asyncio
-async def test_apply_member_access_update_deletes_existing_and_adds_rows_when_not_all_boards() -> (
+async def test_apply_member_access_update_deletes_existing_and_adds_rows_when_not_all_projects() -> (
     None
 ):
     member = OrganizationMember(
@@ -519,16 +519,16 @@ async def test_apply_member_access_update_deletes_existing_and_adds_rows_when_no
         role="member",
     )
     update = OrganizationMemberAccessUpdate(
-        all_boards_read=False,
-        all_boards_write=False,
-        board_access=[
-            OrganizationBoardAccessSpec(
-                board_id=uuid4(),
+        all_projects_read=False,
+        all_projects_write=False,
+        project_access=[
+            OrganizationProjectAccessSpec(
+                project_id=uuid4(),
                 can_read=True,
                 can_write=False,
             ),
-            OrganizationBoardAccessSpec(
-                board_id=uuid4(),
+            OrganizationProjectAccessSpec(
+                project_id=uuid4(),
                 can_read=True,
                 can_write=True,
             ),
@@ -560,8 +560,8 @@ async def test_apply_invite_to_member_upgrades_role_and_merges_access_rows(
         organization_id=org_id,
         user_id=uuid4(),
         role="member",
-        all_boards_read=False,
-        all_boards_write=False,
+        all_projects_read=False,
+        all_projects_write=False,
     )
 
     invite = OrganizationInvite(
@@ -570,14 +570,14 @@ async def test_apply_invite_to_member_upgrades_role_and_merges_access_rows(
         invited_email="x@example.com",
         token="t",
         role="admin",  # upgrade
-        all_boards_read=False,
-        all_boards_write=False,
+        all_projects_read=False,
+        all_projects_write=False,
     )
 
-    board_id = uuid4()
-    invite_access = OrganizationInviteBoardAccess(
+    project_id = uuid4()
+    invite_access = OrganizationInviteProjectAccess(
         organization_invite_id=invite.id,
-        board_id=board_id,
+        project_id=project_id,
         can_read=True,
         can_write=True,
     )
@@ -594,5 +594,5 @@ async def test_apply_invite_to_member_upgrades_role_and_merges_access_rows(
     await organizations.apply_invite_to_member(session, member=member, invite=invite)
 
     assert member.role == "admin"
-    # should have added a new OrganizationBoardAccess row
-    assert any(isinstance(x, OrganizationBoardAccess) for x in session.added)
+    # should have added a new OrganizationProjectAccess row
+    assert any(isinstance(x, OrganizationProjectAccess) for x in session.added)

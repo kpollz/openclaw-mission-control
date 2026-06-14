@@ -14,9 +14,9 @@ import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog";
 
 import { ApiError } from "@/api/mutator";
 import {
-  type listBoardsApiV1BoardsGetResponse,
-  useListBoardsApiV1BoardsGet,
-} from "@/api/generated/boards/boards";
+  type listProjectsApiV1ProjectsGetResponse,
+  useListProjectsApiV1ProjectsGet,
+} from "@/api/generated/projects/projects";
 import {
   type gatewaysStatusApiV1GatewaysStatusGetResponse,
   type getGatewayApiV1GatewaysGatewayIdGetResponse,
@@ -69,8 +69,8 @@ export default function GatewayDetailPage() {
   const gateway =
     gatewayQuery.data?.status === 200 ? gatewayQuery.data.data : null;
 
-  const boardsQuery = useListBoardsApiV1BoardsGet<
-    listBoardsApiV1BoardsGetResponse,
+  const boardsQuery = useListProjectsApiV1ProjectsGet<
+    listProjectsApiV1ProjectsGetResponse,
     ApiError
   >(undefined, {
     query: {

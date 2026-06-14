@@ -5,14 +5,14 @@ from uuid import uuid4
 
 import pytest
 
-import app.services.openclaw.session_service as session_service
-from app.models.gateways import Gateway
-from app.schemas.gateway_api import GatewayResolveQuery
-from app.services.openclaw.gateway_resolver import (
+import app.application.use_cases.agents.session as session_service
+from app.infrastructure.models.gateways import Gateway
+from app.presentation.schemas.gateway_api import GatewayResolveQuery
+from app.infrastructure.gateway.resolver import (
     gateway_client_config,
     optional_gateway_client_config,
 )
-from app.services.openclaw.session_service import GatewaySessionService
+from app.application.use_cases.agents.session import GatewaySessionService
 
 
 def _gateway(
@@ -69,7 +69,7 @@ def test_optional_gateway_client_config_returns_none_for_missing_or_blank_url() 
 
 def test_to_resolve_query_keeps_gateway_disable_device_pairing_value() -> None:
     resolved = GatewaySessionService.to_resolve_query(
-        board_id=None,
+        project_id=None,
         gateway_url="ws://gateway.example:18789/ws",
         gateway_token="secret-token",
         gateway_disable_device_pairing=True,
@@ -80,7 +80,7 @@ def test_to_resolve_query_keeps_gateway_disable_device_pairing_value() -> None:
 
 def test_to_resolve_query_keeps_gateway_allow_insecure_tls_value() -> None:
     resolved = GatewaySessionService.to_resolve_query(
-        board_id=None,
+        project_id=None,
         gateway_url="wss://gateway.example:18789/ws",
         gateway_token="secret-token",
         gateway_allow_insecure_tls=True,

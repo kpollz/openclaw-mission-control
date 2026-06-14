@@ -19,8 +19,9 @@ const buildField = (
   label: "Client Name",
   field_type: "text",
   ui_visibility: "always",
-  board_ids: ["board-1"],
+  project_ids: ["board-1"],
   required: false,
+  required_for_done: false,
   description: "Client display name",
   default_value: "Acme",
   validation_regex: null,
@@ -70,7 +71,7 @@ describe("normalizeCustomFieldFormInput", () => {
         ...DEFAULT_CUSTOM_FIELD_FORM_STATE,
         label: "Client Name",
       },
-      selectedBoardIds: [],
+      selectedProjectIds: [],
     });
 
     expect(result.value).toBeNull();
@@ -91,7 +92,7 @@ describe("normalizeCustomFieldFormInput", () => {
         required: true,
         defaultValue: " 7 ",
       },
-      selectedBoardIds: ["board-1", "board-2"],
+      selectedProjectIds: ["board-1", "board-2"],
     });
 
     expect(result.error).toBeNull();
@@ -104,7 +105,7 @@ describe("normalizeCustomFieldFormInput", () => {
       description: "Primary client",
       required: true,
       defaultValue: 7,
-      boardIds: ["board-1", "board-2"],
+      projectIds: ["board-1", "board-2"],
     });
   });
 });
@@ -120,7 +121,7 @@ describe("payload helpers", () => {
       description: "Display name",
       required: false,
       defaultValue: "ACME",
-      boardIds: ["board-1"],
+      projectIds: ["board-1"],
     });
 
     expect(payload).toEqual({
@@ -132,7 +133,7 @@ describe("payload helpers", () => {
       description: "Display name",
       required: false,
       default_value: "ACME",
-      board_ids: ["board-1"],
+      project_ids: ["board-1"],
     });
   });
 
@@ -147,7 +148,7 @@ describe("payload helpers", () => {
       description: "Client display name",
       required: true,
       defaultValue: "ACME",
-      boardIds: ["board-1"],
+      projectIds: ["board-1"],
     });
 
     expect(updates).toEqual({

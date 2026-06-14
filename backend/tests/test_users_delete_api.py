@@ -10,9 +10,10 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException, status
 
-from app.api import users
-from app.core.auth import AuthContext
-from app.models.users import User
+from app.presentation.api import users
+from app.application.use_cases.users import service as user_service
+from app.infrastructure.auth.clerk_local_auth import AuthContext
+from app.infrastructure.models.users import User
 
 
 @dataclass
@@ -51,9 +52,9 @@ async def test_delete_me_aborts_when_clerk_delete_fails(monkeypatch: pytest.Monk
     async def _unexpected_delete(*_args: Any, **_kwargs: Any) -> int:
         raise AssertionError("crud.delete_where should not be called on Clerk failure")
 
-    monkeypatch.setattr(users, "delete_clerk_user", _fail_delete)
-    monkeypatch.setattr(users.crud, "update_where", _unexpected_update)
-    monkeypatch.setattr(users.crud, "delete_where", _unexpected_delete)
+    monkeypatch.setattr(user_service, "delete_clerk_user", _fail_delete)
+    monkeypatch.setattr(user_service.crud, "update_where", _unexpected_update)
+    monkeypatch.setattr(user_service.crud, "delete_where", _unexpected_delete)
 
     with pytest.raises(HTTPException) as exc_info:
         await users.delete_me(session=session, auth=auth)
@@ -84,10 +85,10 @@ async def test_delete_me_deletes_local_user_after_clerk_success(
         calls["delete"] += 1
         return 1
 
-    monkeypatch.setattr(users, "delete_clerk_user", _delete_from_clerk)
-    monkeypatch.setattr(users, "OrganizationMember", _FakeOrganizationMemberModel)
-    monkeypatch.setattr(users.crud, "update_where", _update_where)
-    monkeypatch.setattr(users.crud, "delete_where", _delete_where)
+    monkeypatch.setattr(user_service, "delete_clerk_user", _delete_from_clerk)
+    monkeypatch.setattr(user_service, "OrganizationMember", _FakeOrganizationMemberModel)
+    monkeypatch.setattr(user_service.crud, "update_where", _update_where)
+    monkeypatch.setattr(user_service.crud, "delete_where", _delete_where)
 
     response = await users.delete_me(session=session, auth=auth)
 

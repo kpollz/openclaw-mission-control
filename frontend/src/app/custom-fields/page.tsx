@@ -14,7 +14,7 @@ import {
   getListOrgCustomFieldsApiV1OrganizationsMeCustomFieldsGetQueryKey,
   useDeleteOrgCustomFieldApiV1OrganizationsMeCustomFieldsTaskCustomFieldDefinitionIdDelete,
   useListOrgCustomFieldsApiV1OrganizationsMeCustomFieldsGet,
-} from "@/api/generated/org-custom-fields/org-custom-fields";
+} from "@/api/generated/custom-fields/custom-fields";
 import type { TaskCustomFieldDefinitionRead } from "@/api/generated/model";
 import { CustomFieldsTable } from "@/components/custom-fields/CustomFieldsTable";
 import { extractApiErrorMessage } from "@/components/custom-fields/custom-field-form-utils";

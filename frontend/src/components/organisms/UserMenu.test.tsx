@@ -2,7 +2,6 @@ import type {
   AnchorHTMLAttributes,
   ImgHTMLAttributes,
   PropsWithChildren,
-  ReactNode,
 } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -11,8 +10,7 @@ import userEvent from "@testing-library/user-event";
 import { UserMenu } from "./UserMenu";
 
 const useUserMock = vi.hoisted(() => vi.fn());
-const clearLocalAuthTokenMock = vi.hoisted(() => vi.fn());
-const isLocalAuthModeMock = vi.hoisted(() => vi.fn());
+const clearPasswordTokensMock = vi.hoisted(() => vi.fn());
 type LinkProps = PropsWithChildren<{
   href: string | { pathname?: string };
 }> &
@@ -26,11 +24,7 @@ vi.mock("next/image", () => ({
 }));
 
 vi.mock("next/link", () => ({
-  default: ({
-    children,
-    href,
-    ...rest
-  }: LinkProps) => (
+  default: ({ children, href, ...rest }: LinkProps) => (
     <a href={typeof href === "string" ? href : "#"} {...rest}>
       {children}
     </a>
@@ -39,48 +33,43 @@ vi.mock("next/link", () => ({
 
 vi.mock("@/auth/clerk", () => ({
   useUser: useUserMock,
-  SignOutButton: ({ children }: { children: ReactNode }) => children,
 }));
 
-vi.mock("@/auth/localAuth", () => ({
-  clearLocalAuthToken: clearLocalAuthTokenMock,
-  isLocalAuthMode: isLocalAuthModeMock,
+vi.mock("@/auth/passwordAuth", () => ({
+  clearPasswordTokens: clearPasswordTokensMock,
 }));
 
 describe("UserMenu", () => {
   beforeEach(() => {
     useUserMock.mockReset();
-    clearLocalAuthTokenMock.mockReset();
-    isLocalAuthModeMock.mockReset();
+    clearPasswordTokensMock.mockReset();
   });
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("renders and opens local-mode menu actions", async () => {
+  it("renders and opens menu actions", async () => {
     const user = userEvent.setup();
-    useUserMock.mockReturnValue({ user: null });
-    isLocalAuthModeMock.mockReturnValue(true);
+    useUserMock.mockReturnValue({ isSignedIn: true, user: null });
 
     render(<UserMenu />);
 
     await user.click(screen.getByRole("button", { name: /open user menu/i }));
 
     expect(
-      screen.getByRole("link", { name: /open boards/i }),
+      screen.getByRole("link", { name: /open projects/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /create board/i }),
+      screen.getByRole("link", { name: /create project/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /sign out/i }),
     ).toBeInTheDocument();
   });
 
-  it("clears local auth token and reloads on local sign out", async () => {
+  it("clears password tokens and reloads on sign out", async () => {
     const user = userEvent.setup();
-    useUserMock.mockReturnValue({ user: null });
-    isLocalAuthModeMock.mockReturnValue(true);
+    useUserMock.mockReturnValue({ isSignedIn: true, user: null });
     const reloadSpy = vi.fn();
     vi.stubGlobal("location", {
       ...window.location,
@@ -92,7 +81,7 @@ describe("UserMenu", () => {
     await user.click(screen.getByRole("button", { name: /open user menu/i }));
     await user.click(screen.getByRole("button", { name: /sign out/i }));
 
-    expect(clearLocalAuthTokenMock).toHaveBeenCalledTimes(1);
+    expect(clearPasswordTokensMock).toHaveBeenCalledTimes(1);
     expect(reloadSpy).toHaveBeenCalledTimes(1);
   });
 });

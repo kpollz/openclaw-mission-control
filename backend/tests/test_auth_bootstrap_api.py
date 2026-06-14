@@ -11,9 +11,9 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from app.api.auth import router as auth_router
-from app.core.auth import AuthContext, get_auth_context
-from app.models.users import User
+from app.presentation.api.auth import router as auth_router
+from app.infrastructure.auth.clerk_local_auth import AuthContext, get_auth_context
+from app.infrastructure.models.users import User
 
 
 def _build_test_app(*, auth_ctx: AuthContext) -> FastAPI:

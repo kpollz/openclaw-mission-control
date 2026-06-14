@@ -11,9 +11,9 @@ import { Building2, UserPlus, Users } from "lucide-react";
 
 import { ApiError, customFetch } from "@/api/mutator";
 import {
-  type listBoardsApiV1BoardsGetResponse,
-  useListBoardsApiV1BoardsGet,
-} from "@/api/generated/boards/boards";
+  type listProjectsApiV1ProjectsGetResponse,
+  useListProjectsApiV1ProjectsGet,
+} from "@/api/generated/projects/projects";
 import {
   type getMyOrgApiV1OrganizationsMeGetResponse,
   type getMyMembershipApiV1OrganizationsMeMemberGetResponse,
@@ -35,8 +35,8 @@ import {
   useUpdateOrgMemberApiV1OrganizationsMeMembersMemberIdPatch,
 } from "@/api/generated/organizations/organizations";
 import type {
-  BoardRead,
-  OrganizationBoardAccessSpec,
+  ProjectRead,
+  OrganizationProjectAccessSpec,
   OrganizationInviteRead,
 } from "@/api/generated/model";
 import { SignedOutPanel } from "@/components/auth/SignedOutPanel";
@@ -71,11 +71,11 @@ type BoardAccessState = Record<string, { read: boolean; write: boolean }>;
 
 const buildAccessList = (
   access: BoardAccessState,
-): OrganizationBoardAccessSpec[] =>
+): OrganizationProjectAccessSpec[] =>
   Object.entries(access)
     .filter(([, entry]) => entry.read || entry.write)
-    .map(([boardId, entry]) => ({
-      board_id: boardId,
+    .map(([projectId, entry]) => ({
+      project_id: projectId,
       can_read: entry.read || entry.write,
       can_write: entry.write,
     }));
@@ -95,7 +95,7 @@ function BoardAccessEditor({
   disabled,
   emptyMessage,
 }: {
-  boards: BoardRead[];
+  boards: ProjectRead[];
   scope: AccessScope;
   onScopeChange: (scope: AccessScope) => void;
   allRead: boolean;
@@ -126,39 +126,39 @@ function BoardAccessEditor({
   };
 
   const updateBoardAccess = (
-    boardId: string,
+    projectId: string,
     next: { read: boolean; write: boolean },
   ) => {
     onAccessChange({
       ...access,
-      [boardId]: {
+      [projectId]: {
         read: next.read || next.write,
         write: next.write,
       },
     });
   };
 
-  const handleBoardReadToggle = (boardId: string) => {
+  const handleBoardReadToggle = (projectId: string) => {
     if (disabled) return;
-    const current = access[boardId] ?? { read: false, write: false };
+    const current = access[projectId] ?? { read: false, write: false };
     const nextRead = !current.read;
     const nextWrite = nextRead ? current.write : false;
-    updateBoardAccess(boardId, { read: nextRead, write: nextWrite });
+    updateBoardAccess(projectId, { read: nextRead, write: nextWrite });
   };
 
-  const handleBoardWriteToggle = (boardId: string) => {
+  const handleBoardWriteToggle = (projectId: string) => {
     if (disabled) return;
-    const current = access[boardId] ?? { read: false, write: false };
+    const current = access[projectId] ?? { read: false, write: false };
     const nextWrite = !current.write;
     const nextRead = nextWrite ? true : current.read;
-    updateBoardAccess(boardId, { read: nextRead, write: nextWrite });
+    updateBoardAccess(projectId, { read: nextRead, write: nextWrite });
   };
 
   return (
     <div className="space-y-3">
       <div>
         <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-          Board access
+          Project access
         </p>
         <div className="mt-3 inline-flex rounded-xl border border-slate-200 bg-slate-100 p-1">
           <button
@@ -172,7 +172,7 @@ function BoardAccessEditor({
             onClick={() => onScopeChange("all")}
             disabled={disabled}
           >
-            All boards
+            All projects
           </button>
           <button
             type="button"
@@ -185,7 +185,7 @@ function BoardAccessEditor({
             onClick={() => onScopeChange("custom")}
             disabled={disabled}
           >
-            Selected boards
+            Selected projects
           </button>
         </div>
       </div>
@@ -220,7 +220,7 @@ function BoardAccessEditor({
         <div>
           {boards.length === 0 ? (
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-              {emptyMessage ?? "No boards available yet."}
+              {emptyMessage ?? "No projects available yet."}
             </div>
           ) : (
             <div className="overflow-hidden rounded-xl border border-slate-200">
@@ -289,8 +289,8 @@ export default function OrganizationPage() {
     },
   );
 
-  const boardsQuery = useListBoardsApiV1BoardsGet<
-    listBoardsApiV1BoardsGetResponse,
+  const boardsQuery = useListProjectsApiV1ProjectsGet<
+    listProjectsApiV1ProjectsGetResponse,
     ApiError
   >(
     { limit: 200 },
@@ -343,7 +343,7 @@ export default function OrganizationPage() {
     return invitesQuery.data.data.items ?? [];
   }, [invitesQuery.data]);
 
-  const boards = useMemo<BoardRead[]>(() => {
+  const boards = useMemo<ProjectRead[]>(() => {
     if (boardsQuery.data?.status !== 200) return [];
     return boardsQuery.data.data.items ?? [];
   }, [boardsQuery.data]);
@@ -374,10 +374,10 @@ export default function OrganizationPage() {
       };
     }
     const isAll =
-      memberDetails.all_boards_read || memberDetails.all_boards_write;
+      memberDetails.all_projects_read || memberDetails.all_projects_write;
     const nextAccess: BoardAccessState = {};
-    for (const entry of memberDetails.board_access ?? []) {
-      nextAccess[entry.board_id] = {
+    for (const entry of memberDetails.project_access ?? []) {
+      nextAccess[entry.project_id] = {
         read: entry.can_read || entry.can_write,
         write: entry.can_write,
       };
@@ -385,8 +385,8 @@ export default function OrganizationPage() {
     return {
       role: memberDetails.role,
       scope: isAll ? "all" : ("custom" as AccessScope),
-      allRead: memberDetails.all_boards_read,
-      allWrite: memberDetails.all_boards_write,
+      allRead: memberDetails.all_projects_read,
+      allWrite: memberDetails.all_projects_write,
       access: nextAccess,
     };
   }, [memberDetails]);
@@ -563,7 +563,7 @@ export default function OrganizationPage() {
       inviteScope === "custom" && inviteAccessList.length > 0;
 
     if (!hasAllAccess && !hasCustomAccess) {
-      setInviteError("Select read or write access for at least one board.");
+      setInviteError("Select read or write access for at least one project.");
       return;
     }
 
@@ -572,9 +572,9 @@ export default function OrganizationPage() {
       data: {
         invited_email: trimmedEmail,
         role: inviteRole,
-        all_boards_read: inviteScope === "all" ? inviteAllRead : false,
-        all_boards_write: inviteScope === "all" ? inviteAllWrite : false,
-        board_access: inviteScope === "custom" ? inviteAccessList : [],
+        all_projects_read: inviteScope === "all" ? inviteAllRead : false,
+        all_projects_write: inviteScope === "all" ? inviteAllWrite : false,
+        project_access: inviteScope === "custom" ? inviteAccessList : [],
       },
     });
   };
@@ -640,7 +640,7 @@ export default function OrganizationPage() {
       resolvedAccessScope === "custom" && accessList.length > 0;
 
     if (!hasAllAccess && !hasCustomAccess) {
-      setAccessError("Select read or write access for at least one board.");
+      setAccessError("Select read or write access for at least one project.");
       return;
     }
 
@@ -659,11 +659,11 @@ export default function OrganizationPage() {
       await updateMemberAccessMutation.mutateAsync({
         memberId: activeMemberId,
         data: {
-          all_boards_read:
+          all_projects_read:
             resolvedAccessScope === "all" ? resolvedAccessAllRead : false,
-          all_boards_write:
+          all_projects_write:
             resolvedAccessScope === "all" ? resolvedAccessAllWrite : false,
-          board_access: resolvedAccessScope === "custom" ? accessList : [],
+          project_access: resolvedAccessScope === "custom" ? accessList : [],
         },
       });
 
@@ -720,7 +720,7 @@ export default function OrganizationPage() {
                     </Badge>
                   </div>
                   <p className="mt-1 text-sm text-slate-500">
-                    Manage members and board access across your workspace.
+                    Manage members and project access across your organization.
                   </p>
                   <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-slate-500">
                     <span>
@@ -733,7 +733,7 @@ export default function OrganizationPage() {
                       <strong className="text-slate-900">
                         {boards.length}
                       </strong>{" "}
-                      boards
+                      projects
                     </span>
                     <span>
                       <strong className="text-slate-900">
@@ -783,7 +783,7 @@ export default function OrganizationPage() {
                     Members & invites
                   </h2>
                   <p className="text-xs text-slate-500">
-                    Invite teammates and tune their board permissions.
+                    Invite teammates and tune their project permissions.
                   </p>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -821,7 +821,7 @@ export default function OrganizationPage() {
           <DialogHeader>
             <DialogTitle>Invite a member</DialogTitle>
             <DialogDescription>
-              Grant access to all boards or select specific workspaces.
+              Grant access to all projects or select specific projects.
             </DialogDescription>
           </DialogHeader>
 
@@ -868,7 +868,7 @@ export default function OrganizationPage() {
                 onAccessChange={setInviteAccess}
                 emptyMessage={
                   boardsQuery.isLoading
-                    ? "Loading boards..."
+                    ? "Loading projects..."
                     : "Create a board to start assigning access."
                 }
               />
@@ -958,7 +958,7 @@ export default function OrganizationPage() {
                 access={resolvedAccessMap}
                 onAccessChange={setAccessMap}
                 emptyMessage={
-                  boardsQuery.isLoading ? "Loading boards..." : undefined
+                  boardsQuery.isLoading ? "Loading projects..." : undefined
                 }
               />
 
@@ -1023,8 +1023,8 @@ export default function OrganizationPage() {
         description={
           <>
             This will permanently delete <strong>{orgName}</strong>, including
-            boards, groups, gateways, members, and invites. This action cannot
-            be undone.
+            projects, gateways, members, and invites. This action cannot be
+            undone.
           </>
         }
         errorMessage={deleteOrganizationMutation.error?.message}

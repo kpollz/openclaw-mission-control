@@ -39,7 +39,7 @@ describe("cell formatters", () => {
   it("renders linkifyCell in inline mode", () => {
     render(
       linkifyCell({
-        href: "/boards/board-1",
+        href: "/projects/board-1",
         label: "Board One",
         block: false,
       }),
@@ -47,7 +47,7 @@ describe("cell formatters", () => {
 
     expect(screen.getByRole("link", { name: "Board One" })).toHaveAttribute(
       "href",
-      "/boards/board-1",
+      "/projects/board-1",
     );
   });
 

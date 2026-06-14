@@ -8,9 +8,10 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-from app.api import deps
-from app.core import agent_auth
-from app.core.auth import AuthContext
+from app.infrastructure.auth import agent_auth
+from app.infrastructure.auth.clerk_local_auth import AuthContext
+from app.infrastructure.models.agents import Agent
+from app.presentation.api import deps
 
 
 class _RecordingLimiter:
@@ -24,6 +25,18 @@ class _RecordingLimiter:
 
 async def _noop_touch(*_: object, **__: object) -> None:
     return None
+
+
+class _PresenceSession:
+    def __init__(self) -> None:
+        self.added: list[object] = []
+        self.commits = 0
+
+    def add(self, value: object) -> None:
+        self.added.append(value)
+
+    async def commit(self) -> None:
+        self.commits += 1
 
 
 @pytest.mark.asyncio
@@ -57,6 +70,44 @@ async def test_optional_agent_auth_rate_limits_bearer_agent_token(
     assert ctx is not None
     assert ctx.agent is agent
     assert limiter.keys == ["203.0.113.10"]
+
+
+@pytest.mark.asyncio
+async def test_touch_agent_presence_moves_updating_agent_online() -> None:
+    agent = Agent(name="worker", gateway_id="11111111-1111-1111-1111-111111111111")
+    agent.status = "updating"
+    session = _PresenceSession()
+    request = SimpleNamespace(method="POST")
+
+    await agent_auth._touch_agent_presence(  # type: ignore[arg-type]
+        request=request,
+        session=session,  # type: ignore[arg-type]
+        agent=agent,
+    )
+
+    assert agent.status == "online"
+    assert agent.last_seen_at is not None
+    assert session.added == [agent]
+    assert session.commits == 0
+
+
+@pytest.mark.asyncio
+async def test_touch_agent_presence_preserves_deleting_status() -> None:
+    agent = Agent(name="worker", gateway_id="11111111-1111-1111-1111-111111111111")
+    agent.status = "deleting"
+    session = _PresenceSession()
+    request = SimpleNamespace(method="GET")
+
+    await agent_auth._touch_agent_presence(  # type: ignore[arg-type]
+        request=request,
+        session=session,  # type: ignore[arg-type]
+        agent=agent,
+    )
+
+    assert agent.status == "deleting"
+    assert agent.last_seen_at is not None
+    assert session.added == [agent]
+    assert session.commits == 1
 
 
 @pytest.mark.asyncio

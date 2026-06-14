@@ -5,11 +5,11 @@ from uuid import uuid4
 
 import pytest
 
-from app.api.activity import _build_activity_route, _coerce_activity_rows, _coerce_task_comment_rows
-from app.models.activity_events import ActivityEvent
-from app.models.agents import Agent
-from app.models.boards import Board
-from app.models.tasks import Task
+from app.presentation.api.activity import _build_activity_route, _coerce_activity_rows, _coerce_task_comment_rows
+from app.infrastructure.models.activity_events import ActivityEvent
+from app.infrastructure.models.agents import Agent
+from app.infrastructure.models.projects import Project
+from app.infrastructure.models.tasks import Task
 
 
 @dataclass
@@ -57,109 +57,109 @@ def _make_event() -> ActivityEvent:
     return ActivityEvent(event_type="task.comment", message="hello")
 
 
-def _make_board() -> Board:
-    return Board(
+def _make_project() -> Project:
+    return Project(
         organization_id=uuid4(),
         name="B",
         slug="b",
     )
 
 
-def _make_task(board_id) -> Task:
-    return Task(board_id=board_id, title="T")
+def _make_task(project_id) -> Task:
+    return Task(project_id=project_id, title="T")
 
 
-def _make_agent(board_id) -> Agent:
+def _make_agent(project_id) -> Agent:
     return Agent(
-        board_id=board_id,
+        project_id=project_id,
         gateway_id=uuid4(),
         name="A",
     )
 
 
 def test_coerce_task_comment_rows_accepts_plain_tuple():
-    board = _make_board()
-    task = _make_task(board.id)
+    project = _make_project()
+    task = _make_task(project.id)
     event = _make_event()
-    agent = _make_agent(board.id)
+    agent = _make_agent(project.id)
 
-    rows = _coerce_task_comment_rows([(event, task, board, agent)])
-    assert rows == [(event, task, board, agent)]
+    rows = _coerce_task_comment_rows([(event, task, project, agent)])
+    assert rows == [(event, task, project, agent)]
 
 
 def test_coerce_task_comment_rows_accepts_row_like_values():
-    board = _make_board()
-    task = _make_task(board.id)
+    project = _make_project()
+    task = _make_task(project.id)
     event = _make_event()
-    row = _FakeSqlRow4(event, task, board, None)
+    row = _FakeSqlRow4(event, task, project, None)
 
     rows = _coerce_task_comment_rows([row])
-    assert rows == [(event, task, board, None)]
+    assert rows == [(event, task, project, None)]
 
 
 def test_coerce_task_comment_rows_rejects_invalid_values():
-    board = _make_board()
-    task = _make_task(board.id)
+    project = _make_project()
+    task = _make_task(project.id)
 
     with pytest.raises(
         TypeError,
-        match="Expected \\(ActivityEvent, Task, Board, Agent \\| None\\) rows",
+        match="Expected \\(ActivityEvent, Task, Project, Agent \\| None\\) rows",
     ):
-        _coerce_task_comment_rows([(uuid4(), task, board, None)])
+        _coerce_task_comment_rows([(uuid4(), task, project, None)])
 
 
 def test_coerce_activity_rows_accepts_plain_tuple():
-    board_id = uuid4()
+    project_id = uuid4()
     event = _make_event()
 
-    rows = _coerce_activity_rows([(event, board_id, None)])
-    assert rows == [(event, board_id, None)]
+    rows = _coerce_activity_rows([(event, project_id, None)])
+    assert rows == [(event, project_id, None)]
 
 
 def test_coerce_activity_rows_accepts_row_like_values():
-    board_id = uuid4()
+    project_id = uuid4()
     event = _make_event()
-    row = _FakeSqlRow3(event, board_id, None)
+    row = _FakeSqlRow3(event, project_id, None)
 
     rows = _coerce_activity_rows([row])
-    assert rows == [(event, board_id, None)]
+    assert rows == [(event, project_id, None)]
 
 
 def test_coerce_activity_rows_rejects_invalid_values():
     event = _make_event()
     with pytest.raises(
         TypeError,
-        match="Expected \\(ActivityEvent, event_board_id, task_board_id\\) rows",
+        match="Expected \\(ActivityEvent, event_project_id, task_project_id\\) rows",
     ):
         _coerce_activity_rows([(event, "bad", None)])
 
 
-def test_build_activity_route_board_comment():
-    board_id = uuid4()
+def test_build_activity_route_project_comment():
+    project_id = uuid4()
     task_id = uuid4()
     event = ActivityEvent(
         event_type="task.comment",
         task_id=task_id,
         message="hello",
     )
-    route_name, route_params = _build_activity_route(event=event, board_id=board_id)
-    assert route_name == "board"
+    route_name, route_params = _build_activity_route(event=event, project_id=project_id)
+    assert route_name == "project"
     assert route_params == {
-        "boardId": str(board_id),
+        "projectId": str(project_id),
         "taskId": str(task_id),
         "commentId": str(event.id),
     }
 
 
-def test_build_activity_route_board_approvals():
-    board_id = uuid4()
+def test_build_activity_route_project_approvals():
+    project_id = uuid4()
     event = ActivityEvent(
         event_type="approval.lead_notified",
         message="hello",
     )
-    route_name, route_params = _build_activity_route(event=event, board_id=board_id)
-    assert route_name == "board.approvals"
-    assert route_params == {"boardId": str(board_id)}
+    route_name, route_params = _build_activity_route(event=event, project_id=project_id)
+    assert route_name == "project.approvals"
+    assert route_params == {"projectId": str(project_id)}
 
 
 def test_build_activity_route_global_fallback():
@@ -167,7 +167,7 @@ def test_build_activity_route_global_fallback():
         event_type="gateway.main.lead_broadcast.sent",
         message="hello",
     )
-    route_name, route_params = _build_activity_route(event=event, board_id=None)
+    route_name, route_params = _build_activity_route(event=event, project_id=None)
     assert route_name == "activity"
     assert route_params["eventId"] == str(event.id)
     assert route_params["eventType"] == event.event_type

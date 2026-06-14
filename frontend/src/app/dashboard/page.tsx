@@ -36,9 +36,9 @@ import {
   useListAgentsApiV1AgentsGet,
 } from "@/api/generated/agents/agents";
 import {
-  type listBoardsApiV1BoardsGetResponse,
-  useListBoardsApiV1BoardsGet,
-} from "@/api/generated/boards/boards";
+  type listProjectsApiV1ProjectsGetResponse,
+  useListProjectsApiV1ProjectsGet,
+} from "@/api/generated/projects/projects";
 import {
   type listActivityApiV1ActivityGetResponse,
   useListActivityApiV1ActivityGet,
@@ -67,7 +67,7 @@ type SummaryRow = {
 
 type GatewayTarget = {
   gatewayId: string;
-  boardId: string;
+  projectId: string;
   boardName: string;
 };
 
@@ -479,7 +479,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const { isSignedIn } = useAuth();
 
-  const boardsQuery = useListBoardsApiV1BoardsGet<listBoardsApiV1BoardsGetResponse, ApiError>(
+  const boardsQuery = useListProjectsApiV1ProjectsGet<listProjectsApiV1ProjectsGetResponse, ApiError>(
     { limit: 200 },
     {
       query: {
@@ -560,7 +560,7 @@ export default function DashboardPage() {
       if (byGateway.has(gatewayId)) continue;
       byGateway.set(gatewayId, {
         gatewayId,
-        boardId: board.id,
+        projectId: board.id,
         boardName: board.name,
       });
     }
@@ -572,7 +572,7 @@ export default function DashboardPage() {
     queryKey: [
       "dashboard",
       "gateway-statuses",
-      gatewayTargets.map((target) => `${target.gatewayId}:${target.boardId}`),
+      gatewayTargets.map((target) => `${target.gatewayId}:${target.projectId}`),
     ],
     enabled: Boolean(isSignedIn && hasConfiguredGateways),
     refetchInterval: 15_000,
@@ -582,7 +582,7 @@ export default function DashboardPage() {
         gatewayTargets.map(async (target): Promise<GatewaySnapshot> => {
           try {
             const response = await gatewaysStatusApiV1GatewaysStatusGet(
-              { board_id: target.boardId },
+              { project_id: target.projectId },
               { signal },
             );
             if (response.status !== 200) {
@@ -832,23 +832,23 @@ export default function DashboardPage() {
     const routeParams = event.route_params ?? {};
 
     if (routeName === "board.approvals") {
-      const boardId = routeParams.boardId;
-      if (boardId) {
-        return `/boards/${encodeURIComponent(boardId)}/approvals`;
+      const projectId = routeParams.projectId;
+      if (projectId) {
+        return `/projects/${encodeURIComponent(projectId)}/approvals`;
       }
     }
 
     if (routeName === "board") {
-      const boardId = routeParams.boardId;
-      if (boardId) {
+      const projectId = routeParams.projectId;
+      if (projectId) {
         const params = new URLSearchParams();
         Object.entries(routeParams).forEach(([key, value]) => {
-          if (key !== "boardId") params.set(key, value);
+          if (key !== "projectId") params.set(key, value);
         });
         const query = params.toString();
         return query
-          ? `/boards/${encodeURIComponent(boardId)}?${query}`
-          : `/boards/${encodeURIComponent(boardId)}`;
+          ? `/projects/${encodeURIComponent(projectId)}?${query}`
+          : `/projects/${encodeURIComponent(projectId)}`;
       }
     }
 
@@ -986,7 +986,7 @@ export default function DashboardPage() {
                     {pendingApprovalItems.map((item) => (
                       <Link
                         key={item.approval_id}
-                        href={`/boards/${item.board_id}/approvals`}
+                        href={`/projects/${item.project_id}/approvals`}
                         className="flex items-center justify-between gap-3 px-3 py-2 transition hover:bg-slate-50"
                       >
                         <span className="min-w-0 text-sm text-slate-700">
@@ -994,7 +994,7 @@ export default function DashboardPage() {
                             {item.task_title || "Pending approval"}
                           </span>
                           <span className="block truncate text-xs text-slate-500">
-                            {item.board_name} · {item.confidence}% score
+                            {item.project_name} · {item.confidence}% score
                           </span>
                         </span>
                         <span className="shrink-0 text-xs text-slate-500">

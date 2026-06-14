@@ -11,7 +11,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 
-import { type AgentRead, type BoardRead } from "@/api/generated/model";
+import { type AgentRead, type ProjectRead } from "@/api/generated/model";
 import { DataTable } from "@/components/tables/DataTable";
 import {
   dateCell,
@@ -30,7 +30,7 @@ type AgentsTableEmptyState = {
 
 type AgentsTableProps = {
   agents: AgentRead[];
-  boards?: BoardRead[];
+  boards?: ProjectRead[];
   isLoading?: boolean;
   sorting?: SortingState;
   onSortingChange?: OnChangeFn<SortingState>;
@@ -94,7 +94,7 @@ export function AgentsTable({
       ),
     [hiddenColumns],
   );
-  const boardNameById = useMemo(
+  const projectNameById = useMemo(
     () => new Map(boards.map((board) => [board.id, board.name])),
     [boards],
   );
@@ -126,17 +126,17 @@ export function AgentsTable({
         ),
       },
       {
-        accessorKey: "board_id",
-        header: "Board",
+        accessorKey: "project_id",
+        header: "Project",
         cell: ({ row }) => {
-          const boardId = row.original.board_id;
-          if (!boardId) {
+          const projectId = row.original.project_id;
+          if (!projectId) {
             return <span className="text-sm text-slate-700">—</span>;
           }
-          const boardName = boardNameById.get(boardId) ?? boardId;
+          const projectName = projectNameById.get(projectId) ?? projectId;
           return linkifyCell({
-            href: `/boards/${boardId}`,
-            label: boardName,
+            href: `/projects/${projectId}`,
+            label: projectName,
             block: false,
           });
         },
@@ -155,7 +155,7 @@ export function AgentsTable({
     ];
 
     return baseColumns;
-  }, [boardNameById]);
+  }, [projectNameById]);
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({

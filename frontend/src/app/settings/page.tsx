@@ -56,10 +56,8 @@ export default function SettingsPage() {
   const meQueryKey = getGetMeApiV1UsersMeGetQueryKey();
 
   const profile = meQuery.data?.status === 200 ? meQuery.data.data : null;
-  const clerkFallbackName =
-    user?.fullName ?? user?.firstName ?? user?.username ?? "";
-  const displayEmail =
-    profile?.email ?? user?.primaryEmailAddress?.emailAddress ?? "";
+  const clerkFallbackName = "";
+  const displayEmail = profile?.email ?? "";
   const resolvedName = nameEdited
     ? name
     : (profile?.name ?? profile?.preferred_name ?? clerkFallbackName);

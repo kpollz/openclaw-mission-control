@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import ssl
 
-from app.services.openclaw.gateway_rpc import GatewayConfig, _create_ssl_context
+from app.infrastructure.gateway.rpc_client import GatewayConfig, _create_ssl_context
 
 
 def test_create_ssl_context_returns_none_for_ws_protocol() -> None:

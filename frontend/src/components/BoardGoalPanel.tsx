@@ -7,7 +7,7 @@ import { parseApiDatetime } from "@/lib/datetime";
 import { cn } from "@/lib/utils";
 
 type BoardGoal = {
-  board_type?: string;
+  project_type?: string;
   objective?: string | null;
   success_metrics?: Record<string, unknown> | null;
   target_date?: string | null;
@@ -50,7 +50,7 @@ export function BoardGoalPanel({
     return [["Metric", board.success_metrics]];
   })();
 
-  const isGoalBoard = board?.board_type !== "general";
+  const isGoalBoard = board?.project_type !== "general";
   const isConfirmed = Boolean(board?.goal_confirmed);
 
   return (

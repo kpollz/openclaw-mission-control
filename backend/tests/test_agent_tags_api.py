@@ -4,13 +4,13 @@ from dataclasses import dataclass
 from uuid import UUID, uuid4
 
 import pytest
-from fastapi import HTTPException
 
-from app.api import agent as agent_api
-from app.core.agent_auth import AgentAuthContext
-from app.models.agents import Agent
-from app.models.boards import Board
-from app.models.tags import Tag
+from app.presentation.api import agent as agent_api
+from app.infrastructure.auth.agent_auth import AgentAuthContext
+from app.domain.exceptions import PermissionDeniedError
+from app.infrastructure.models.agents import Agent
+from app.infrastructure.models.projects import Project
+from app.infrastructure.models.tags import Tag
 
 
 @dataclass
@@ -29,8 +29,8 @@ class _FakeSession:
         return _FakeExecResult(self.tags)
 
 
-def _board() -> Board:
-    return Board(
+def _project() -> Project:
+    return Project(
         id=uuid4(),
         organization_id=uuid4(),
         name="Delivery",
@@ -38,34 +38,34 @@ def _board() -> Board:
     )
 
 
-def _agent_ctx(*, board_id: UUID | None) -> AgentAuthContext:
+def _agent_ctx(*, project_id: UUID | None) -> AgentAuthContext:
     return AgentAuthContext(
         actor_type="agent",
         agent=Agent(
             id=uuid4(),
-            board_id=board_id,
+            project_id=project_id,
             gateway_id=uuid4(),
             name="Lead",
-            is_board_lead=True,
+            is_project_lead=True,
         ),
     )
 
 
 @pytest.mark.asyncio
 async def test_list_tags_returns_tag_refs() -> None:
-    board = _board()
+    project = _project()
     session = _FakeSession(
         tags=[
             Tag(
                 id=uuid4(),
-                organization_id=board.organization_id,
+                organization_id=project.organization_id,
                 name="Backend",
                 slug="backend",
                 color="0f172a",
             ),
             Tag(
                 id=uuid4(),
-                organization_id=board.organization_id,
+                organization_id=project.organization_id,
                 name="Urgent",
                 slug="urgent",
                 color="dc2626",
@@ -74,9 +74,9 @@ async def test_list_tags_returns_tag_refs() -> None:
     )
 
     response = await agent_api.list_tags(
-        board=board,
+        project=project,
         session=session,  # type: ignore[arg-type]
-        agent_ctx=_agent_ctx(board_id=board.id),
+        agent_ctx=_agent_ctx(project_id=project.id),
     )
 
     assert [tag.slug for tag in response] == ["backend", "urgent"]
@@ -85,15 +85,13 @@ async def test_list_tags_returns_tag_refs() -> None:
 
 
 @pytest.mark.asyncio
-async def test_list_tags_rejects_cross_board_agent() -> None:
-    board = _board()
+async def test_list_tags_rejects_cross_project_agent() -> None:
+    project = _project()
     session = _FakeSession(tags=[])
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(PermissionDeniedError):
         await agent_api.list_tags(
-            board=board,
+            project=project,
             session=session,  # type: ignore[arg-type]
-            agent_ctx=_agent_ctx(board_id=uuid4()),
+            agent_ctx=_agent_ctx(project_id=uuid4()),
         )
-
-    assert exc.value.status_code == 403

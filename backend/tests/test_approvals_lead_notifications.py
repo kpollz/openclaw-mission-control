@@ -6,12 +6,13 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from app.api import approvals
-from app.models.agents import Agent
-from app.models.approvals import Approval
-from app.models.boards import Board
-from app.schemas.approvals import ApprovalRead, ApprovalUpdate
-from app.services.openclaw.gateway_rpc import GatewayConfig as GatewayClientConfig
+from app.application.use_cases.approvals import service as approval_service
+from app.infrastructure.models.agents import Agent
+from app.infrastructure.models.approvals import Approval
+from app.infrastructure.models.projects import Project
+from app.presentation.api import approvals
+from app.presentation.schemas.approvals import ApprovalRead, ApprovalUpdate
+from app.infrastructure.gateway.rpc_client import GatewayConfig as GatewayClientConfig
 
 
 class _ByIdQuery:
@@ -50,8 +51,8 @@ class _FakeSession:
         self.refreshed += 1
 
 
-def _board() -> Board:
-    return Board(
+def _project() -> Project:
+    return Project(
         id=uuid4(),
         organization_id=uuid4(),
         name="Ops",
@@ -59,10 +60,10 @@ def _board() -> Board:
     )
 
 
-def _approval(*, board_id: UUID, status: str = "pending") -> Approval:
+def _approval(*, project_id: UUID, status: str = "pending") -> Approval:
     return Approval(
         id=uuid4(),
-        board_id=board_id,
+        project_id=project_id,
         action_type="task.execute",
         confidence=91,
         status=status,
@@ -74,48 +75,52 @@ def _approval(*, board_id: UUID, status: str = "pending") -> Approval:
 async def test_update_approval_notifies_lead_when_approved(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    board = _board()
-    approval = _approval(board_id=board.id, status="pending")
+    project = _project()
+    approval = _approval(project_id=project.id, status="pending")
     lead = Agent(
         id=uuid4(),
-        board_id=board.id,
+        project_id=project.id,
         gateway_id=uuid4(),
         name="Lead Agent",
-        is_board_lead=True,
+        is_project_lead=True,
         openclaw_session_id="agent:lead:session",
     )
     session = _FakeSession()
     captured: dict[str, Any] = {}
 
     fake_approval_model = type("FakeApprovalModel", (), {"objects": _ApprovalObjects(approval)})
-    monkeypatch.setattr(approvals, "Approval", fake_approval_model)
+    monkeypatch.setattr(approval_service, "Approval", fake_approval_model)
 
     async def _fake_resolve_lead(*_args: Any, **_kwargs: Any) -> Agent:
         return lead
 
-    async def _fake_optional_gateway_config_for_board(
-        self: approvals.GatewayDispatchService,
-        _board: Board,
+    async def _fake_optional_gateway_config_for_project(
+        self: approval_service.GatewayDispatchService,
+        _project: Project,
     ) -> GatewayClientConfig:
         _ = self
         return GatewayClientConfig(url="ws://gateway.example/ws", token=None)
 
     async def _fake_try_send_agent_message(
-        self: approvals.GatewayDispatchService,
+        self: approval_service.GatewayDispatchService,
         **kwargs: Any,
     ) -> None:
         _ = self
         captured.update(kwargs)
         return None
 
-    monkeypatch.setattr(approvals, "_resolve_board_lead", _fake_resolve_lead)
     monkeypatch.setattr(
-        approvals.GatewayDispatchService,
-        "optional_gateway_config_for_board",
-        _fake_optional_gateway_config_for_board,
+        approval_service.ApprovalService,
+        "_resolve_project_lead",
+        _fake_resolve_lead,
     )
     monkeypatch.setattr(
-        approvals.GatewayDispatchService,
+        approval_service.GatewayDispatchService,
+        "optional_gateway_config_for_project",
+        _fake_optional_gateway_config_for_project,
+    )
+    monkeypatch.setattr(
+        approval_service.GatewayDispatchService,
         "try_send_agent_message",
         _fake_try_send_agent_message,
     )
@@ -128,13 +133,20 @@ async def test_update_approval_notifies_lead_when_approved(
         _ = approval_ids
         return {approval.id: []}
 
-    monkeypatch.setattr(approvals, "load_task_ids_by_approval", _fake_load_task_ids_by_approval)
+    monkeypatch.setattr(
+        approval_service,
+        "load_task_ids_by_approval",
+        _fake_load_task_ids_by_approval,
+    )
 
-    async def _fake_reads(_session: object, _approvals: list[Approval]) -> list[ApprovalRead]:
+    async def _fake_reads(
+        _self: object,
+        _approvals: list[Approval],
+    ) -> list[ApprovalRead]:
         return [ApprovalRead.model_validate(approval, from_attributes=True)]
 
     monkeypatch.setattr(
-        approvals,
+        approval_service.ApprovalService,
         "_approval_reads",
         _fake_reads,
     )
@@ -142,7 +154,7 @@ async def test_update_approval_notifies_lead_when_approved(
     updated = await approvals.update_approval(
         approval_id=str(approval.id),
         payload=ApprovalUpdate(status="approved"),
-        board=board,
+        project=project,
         session=session,  # type: ignore[arg-type]
     )
 
@@ -161,24 +173,31 @@ async def test_update_approval_notifies_lead_when_approved(
 async def test_update_approval_skips_notify_when_status_not_resolved(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    board = _board()
-    approval = _approval(board_id=board.id, status="pending")
+    project = _project()
+    approval = _approval(project_id=project.id, status="pending")
     session = _FakeSession()
     called = {"notify": 0}
 
     fake_approval_model = type("FakeApprovalModel", (), {"objects": _ApprovalObjects(approval)})
-    monkeypatch.setattr(approvals, "Approval", fake_approval_model)
+    monkeypatch.setattr(approval_service, "Approval", fake_approval_model)
 
-    async def _fake_notify(**_kwargs: Any) -> None:
+    async def _fake_notify(*_args: Any, **_kwargs: Any) -> None:
         called["notify"] += 1
 
-    monkeypatch.setattr(approvals, "_notify_lead_on_approval_resolution", _fake_notify)
+    monkeypatch.setattr(
+        approval_service.ApprovalService,
+        "_notify_lead_on_approval_resolution",
+        _fake_notify,
+    )
 
-    async def _fake_reads(_session: object, _approvals: list[Approval]) -> list[ApprovalRead]:
+    async def _fake_reads(
+        _self: object,
+        _approvals: list[Approval],
+    ) -> list[ApprovalRead]:
         return [ApprovalRead.model_validate(approval, from_attributes=True)]
 
     monkeypatch.setattr(
-        approvals,
+        approval_service.ApprovalService,
         "_approval_reads",
         _fake_reads,
     )
@@ -186,7 +205,7 @@ async def test_update_approval_skips_notify_when_status_not_resolved(
     updated = await approvals.update_approval(
         approval_id=str(approval.id),
         payload=ApprovalUpdate(status="pending"),
-        board=board,
+        project=project,
         session=session,  # type: ignore[arg-type]
     )
 
@@ -195,9 +214,9 @@ async def test_update_approval_skips_notify_when_status_not_resolved(
 
 
 def test_approval_resolution_message_uses_rejected_enum_value() -> None:
-    board = _board()
-    approval = _approval(board_id=board.id, status="rejected")
-    message = approvals._approval_resolution_message(board=board, approval=approval)
+    project = _project()
+    approval = _approval(project_id=project.id, status="rejected")
+    message = approval_service.ApprovalService._approval_resolution_message(project=project, approval=approval)
     assert "APPROVAL RESOLVED" in message
     assert f"Approval ID: {approval.id}" in message
     assert "Decision: rejected" in message

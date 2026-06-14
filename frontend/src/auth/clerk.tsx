@@ -1,102 +1,54 @@
 "use client";
 
-// NOTE: We intentionally keep this file very small and dependency-free.
-// It provides CI/secretless-build safe fallbacks for Clerk hooks/components.
+// Auth wrappers — password-only mode.
+// Kept as re-exports with the same API surface so consumers don't need changes.
 
-import type { ReactNode, ComponentProps } from "react";
+import type { ReactNode } from "react";
 
-import {
-  ClerkProvider,
-  SignedIn as ClerkSignedIn,
-  SignedOut as ClerkSignedOut,
-  SignInButton as ClerkSignInButton,
-  SignOutButton as ClerkSignOutButton,
-  useAuth as clerkUseAuth,
-  useUser as clerkUseUser,
-} from "@clerk/nextjs";
+import { getPasswordAccessToken } from "@/auth/passwordAuth";
 
-import { isLikelyValidClerkPublishableKey } from "@/auth/clerkKey";
-import { getLocalAuthToken, isLocalAuthMode } from "@/auth/localAuth";
-
-function hasLocalAuthToken(): boolean {
-  return Boolean(getLocalAuthToken());
-}
-
-export function isClerkEnabled(): boolean {
-  // IMPORTANT: keep this in sync with AuthProvider; otherwise components like
-  // <SignedOut/> may render without a <ClerkProvider/> and crash during prerender.
-  if (isLocalAuthMode()) return false;
-  return isLikelyValidClerkPublishableKey(
-    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
-  );
+function hasToken(): boolean {
+  return Boolean(getPasswordAccessToken());
 }
 
 export function SignedIn(props: { children: ReactNode }) {
-  if (isLocalAuthMode()) {
-    return hasLocalAuthToken() ? <>{props.children}</> : null;
-  }
-  if (!isClerkEnabled()) return null;
-  return <ClerkSignedIn>{props.children}</ClerkSignedIn>;
+  return hasToken() ? <>{props.children}</> : null;
 }
 
 export function SignedOut(props: { children: ReactNode }) {
-  if (isLocalAuthMode()) {
-    return hasLocalAuthToken() ? null : <>{props.children}</>;
-  }
-  if (!isClerkEnabled()) return <>{props.children}</>;
-  return <ClerkSignedOut>{props.children}</ClerkSignedOut>;
+  return hasToken() ? null : <>{props.children}</>;
 }
 
-// Keep the same prop surface as Clerk components so call sites don't need edits.
-export function SignInButton(props: ComponentProps<typeof ClerkSignInButton>) {
-  if (!isClerkEnabled()) return null;
-  return <ClerkSignInButton {...props} />;
+// Renders children inside a link to /sign-in (replaces Clerk modal).
+// Accepts the same props as the old Clerk component so consumers compile.
+export function SignInButton(props: {
+  children?: ReactNode;
+  mode?: string;
+  forceRedirectUrl?: string;
+  signUpForceRedirectUrl?: string;
+}) {
+  return <>{props.children}</>;
 }
 
-export function SignOutButton(
-  props: ComponentProps<typeof ClerkSignOutButton>,
-) {
-  if (!isClerkEnabled()) return null;
-  return <ClerkSignOutButton {...props} />;
+export function SignOutButton() {
+  return null;
 }
 
 export function useUser() {
-  if (isLocalAuthMode()) {
-    return {
-      isLoaded: true,
-      isSignedIn: hasLocalAuthToken(),
-      user: null,
-    } as const;
-  }
-  if (!isClerkEnabled()) {
-    return { isLoaded: true, isSignedIn: false, user: null } as const;
-  }
-  return clerkUseUser();
+  return {
+    isLoaded: true,
+    isSignedIn: hasToken(),
+    user: null,
+  } as const;
 }
 
 export function useAuth() {
-  if (isLocalAuthMode()) {
-    const token = getLocalAuthToken();
-    return {
-      isLoaded: true,
-      isSignedIn: Boolean(token),
-      userId: token ? "local-user" : null,
-      sessionId: token ? "local-session" : null,
-      getToken: async () => token,
-    } as const;
-  }
-  if (!isClerkEnabled()) {
-    return {
-      isLoaded: true,
-      isSignedIn: false,
-      userId: null,
-      sessionId: null,
-      getToken: async () => null,
-    } as const;
-  }
-  return clerkUseAuth();
+  const token = getPasswordAccessToken();
+  return {
+    isLoaded: true,
+    isSignedIn: Boolean(token),
+    userId: token ? "password-user" : null,
+    sessionId: token ? "password-session" : null,
+    getToken: async () => token,
+  } as const;
 }
-
-// Re-export ClerkProvider for places that want to mount it, but strongly prefer
-// gating via isClerkEnabled() at call sites.
-export { ClerkProvider };

@@ -1,0 +1,134 @@
+{% set is_main = (is_main_agent | default(false) | string | lower) in ["true", "1", "yes"] %}
+{% set is_lead = (is_project_lead | default(false) | string | lower) in ["true", "1", "yes"] %}
+# TOOLS.md
+
+- `BASE_URL={{ base_url }}`
+- `AUTH_TOKEN={{ auth_token }}`
+- `AGENT_NAME={{ agent_name }}`
+- `AGENT_ID={{ agent_id }}`
+{% if project_id is defined %}
+- `PROJECT_ID={{ project_id }}`
+{% endif %}
+- `WORKSPACE_ROOT={{ workspace_root }}`
+{% if workspace_path is defined %}
+- `WORKSPACE_PATH={{ workspace_path }}`
+{% endif %}
+- Required tools: `curl`, `jq`
+
+{% if is_main %}
+{% set role_tag = "agent-main" %}
+{% elif is_lead %}
+{% set role_tag = "agent-lead" %}
+{% else %}
+{% set role_tag = "agent-worker" %}
+{% endif %}
+
+## OpenAPI refresh (run before API-heavy work)
+
+```bash
+mkdir -p api
+curl -fsS "{{ base_url }}/openapi.json" -o api/openapi.json
+jq -r '
+  .paths | to_entries[] as $p
+  | $p.value | to_entries[]
+  | select((.value.tags // []) | index("{{ role_tag }}"))
+  | "\(.key|ascii_upcase)\t\($p.key)\t\(.value.operationId // "-")\t\(.value[\"x-llm-intent\"] // "-")\t\(.value[\"x-when-to-use\"] // [] | join(\" | \"))\t\(.value[\"x-routing-policy\"] // [] | join(\" | \"))"
+' api/openapi.json | sort > api/{{ role_tag }}-operations.tsv
+```
+
+## API source of truth
+- `api/openapi.json`
+- `api/{{ role_tag }}-operations.tsv`
+  - Columns: METHOD, PATH, OP_ID, X_LLM_INTENT, X_WHEN_TO_USE, X_ROUTING_POLICY
+
+## Shell setup
+Run this before any Mission Control API call in a shell:
+
+```bash
+export BASE_URL="{{ base_url }}"
+export AUTH_TOKEN="{{ auth_token }}"
+export AGENT_ID="{{ agent_id }}"
+export AGENT_NAME="{{ agent_name }}"
+{% if project_id is defined %}
+export PROJECT_ID="{{ project_id }}"
+{% endif %}
+```
+
+Use `curl -fsS` so failed requests stop instead of looking successful.
+Always include `-H "X-Agent-Token: $AUTH_TOKEN"`.
+For JSON writes, always include `-H "Content-Type: application/json"`.
+
+## Command construction rules
+- Do not invent endpoint paths, field names, or HTTP methods.
+- First prefer the known-good commands below.
+- For anything else, inspect `api/openapi.json` and choose an operation tagged `{{ role_tag }}`.
+- Use `PROJECT_ID` as the Mission Control project id for project-scoped agent routes.
+- If a command returns 401, stop using the token in memory and re-read `TOOLS.md`; do not retry with old tokens.
+- If a command returns 403, you are authenticated but not allowed; ask the lead/user for permission or reassignment.
+- If a command returns 422, inspect the response body and OpenAPI schema before retrying.
+- Never put `AUTH_TOKEN` in task comments, memory, chat, logs, or screenshots.
+
+## Known-good commands
+
+Preflight health:
+
+```bash
+curl -fsS "$BASE_URL/healthz"
+```
+
+Heartbeat:
+
+```bash
+curl -fsS -X POST "$BASE_URL/api/v1/agent/heartbeat" \
+  -H "X-Agent-Token: $AUTH_TOKEN"
+```
+
+{% if project_id is defined %}
+List active project tasks:
+
+```bash
+curl -fsS "$BASE_URL/api/v1/agent/projects/$PROJECT_ID/tasks?status=inbox,in_progress,review" \
+  -H "X-Agent-Token: $AUTH_TOKEN"
+```
+
+Add a task comment:
+
+```bash
+curl -fsS -X POST "$BASE_URL/api/v1/agent/projects/$PROJECT_ID/tasks/<TASK_ID>/comments" \
+  -H "X-Agent-Token: $AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"**Update**\n- ...\n\n**Evidence**\n- ...\n\n**Next**\n- ..."}'
+```
+
+Move a task to review with evidence:
+
+```bash
+curl -fsS -X PATCH "$BASE_URL/api/v1/agent/projects/$PROJECT_ID/tasks/<TASK_ID>" \
+  -H "X-Agent-Token: $AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"review","comment":"**Update**\n- Ready for review.\n\n**Evidence**\n- ..."}'
+```
+
+Ask for the exact task schema before writing unfamiliar fields:
+
+```bash
+jq '.components.schemas.TaskUpdate' api/openapi.json
+```
+{% endif %}
+
+## API discovery policy
+- Use operations tagged `{{ role_tag }}`.
+- Prefer operations whose `x-llm-intent` and `x-when-to-use` match the current objective.
+- Derive method/path/schema from `api/openapi.json` at runtime.
+- Do not hardcode endpoint paths in markdown files.
+
+## JSON payload policy
+- Build payloads with only documented fields.
+- Use UUID strings exactly as received from Mission Control.
+- For task status changes, include evidence in `comment` when the schema allows it.
+- Do not mark a task done unless `output` is populated with non-blank deliverable text.
+- To complete a task, send `{"output":"<deliverable/evidence summary>","status":"done"}` only after all gates are satisfied.
+- If a required field is unknown, ask one precise question instead of guessing.
+
+## API safety
+If no confident match exists for current intent, ask one clarifying question.

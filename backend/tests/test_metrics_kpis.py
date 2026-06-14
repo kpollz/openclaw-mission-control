@@ -5,10 +5,10 @@ from uuid import uuid4
 
 import pytest
 
-from app.api import metrics as metrics_api
-from app.models.approvals import Approval
-from app.models.boards import Board
-from app.models.tasks import Task
+from app.application.use_cases.metrics import service as metrics_service
+from app.infrastructure.models.approvals import Approval
+from app.infrastructure.models.projects import Project
+from app.infrastructure.models.tasks import Task
 
 
 class _ExecResult:
@@ -55,8 +55,8 @@ class _SequentialSession:
 
 
 @pytest.mark.asyncio
-async def test_task_status_counts_returns_zeroes_for_empty_board_scope() -> None:
-    counts = await metrics_api._task_status_counts(_FakeSession([]), [])
+async def test_task_status_counts_returns_zeroes_for_empty_project_scope() -> None:
+    counts = await metrics_service._task_status_counts(_FakeSession([]), [])
 
     assert counts == {
         "inbox": 0,
@@ -78,7 +78,7 @@ async def test_task_status_counts_maps_known_statuses() -> None:
         ],
     )
 
-    counts = await metrics_api._task_status_counts(session, [uuid4()])
+    counts = await metrics_service._task_status_counts(session, [uuid4()])
 
     assert counts == {
         "inbox": 4,
@@ -90,7 +90,7 @@ async def test_task_status_counts_maps_known_statuses() -> None:
 
 @pytest.mark.asyncio
 async def test_pending_approvals_snapshot_returns_empty_for_empty_scope() -> None:
-    snapshot = await metrics_api._pending_approvals_snapshot(_SequentialSession([]), [])
+    snapshot = await metrics_service._pending_approvals_snapshot(_SequentialSession([]), [])
 
     assert snapshot.total == 0
     assert snapshot.items == []
@@ -99,34 +99,34 @@ async def test_pending_approvals_snapshot_returns_empty_for_empty_scope() -> Non
 @pytest.mark.asyncio
 async def test_pending_approvals_snapshot_maps_rows() -> None:
     approval_id = uuid4()
-    board_id = uuid4()
+    project_id = uuid4()
     organization_id = uuid4()
     task_id = uuid4()
     created_at = datetime(2026, 3, 4, 12, 0, 0)
     approval = Approval(
         id=approval_id,
-        board_id=board_id,
+        project_id=project_id,
         task_id=task_id,
         action_type="approve_task",
         confidence=87.0,
         created_at=created_at,
         status="pending",
     )
-    board = Board(
-        id=board_id,
+    project = Project(
+        id=project_id,
         organization_id=organization_id,
-        name="Operations Board",
-        slug="operations-board",
+        name="Operations Project",
+        slug="operations-project",
     )
     task = Task(
         id=task_id,
-        board_id=board_id,
+        project_id=project_id,
         title="Validate rollout checklist",
     )
     rows: list[tuple[object, ...]] = [
         (
             approval,
-            board,
+            project,
             task,
         )
     ]
@@ -137,14 +137,14 @@ async def test_pending_approvals_snapshot_maps_rows() -> None:
         ]
     )
 
-    snapshot = await metrics_api._pending_approvals_snapshot(session, [board_id], limit=10)
+    snapshot = await metrics_service._pending_approvals_snapshot(session, [project_id], limit=10)
 
     assert snapshot.total == 3
     assert len(snapshot.items) == 1
     item = snapshot.items[0]
     assert item.approval_id == approval_id
-    assert item.board_id == board_id
-    assert item.board_name == "Operations Board"
+    assert item.project_id == project_id
+    assert item.project_name == "Operations Project"
     assert item.action_type == "approve_task"
     assert item.confidence == 87.0
     assert item.created_at == created_at

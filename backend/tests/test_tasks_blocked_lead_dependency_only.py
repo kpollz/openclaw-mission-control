@@ -9,14 +9,15 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlmodel import SQLModel, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import ActorContext
-from app.api.tasks import _apply_lead_task_update, _TaskUpdateInput
-from app.models.agents import Agent
-from app.models.boards import Board
-from app.models.organizations import Organization
-from app.models.task_dependencies import TaskDependency
-from app.models.tasks import Task
-from app.services.task_dependencies import blocked_by_for_task
+from app.presentation.api.deps import ActorContext
+from app.presentation.api.tasks import _TaskUpdateInput
+from app.application.use_cases.tasks.service import TaskService
+from app.infrastructure.models.agents import Agent
+from app.infrastructure.models.projects import Project
+from app.infrastructure.models.organizations import Organization
+from app.infrastructure.models.task_dependencies import TaskDependency
+from app.infrastructure.models.tasks import Task
+from app.domain.services.task_dependencies import blocked_by_for_task
 
 
 async def _make_engine() -> AsyncEngine:
@@ -42,27 +43,27 @@ async def test_lead_dependency_only_update_allowed_when_task_blocked() -> None:
     try:
         async with await _make_session(engine) as session:
             org_id = uuid4()
-            board_id = uuid4()
+            project_id = uuid4()
             lead_id = uuid4()
             dep_id = uuid4()
             task_id = uuid4()
 
             session.add(Organization(id=org_id, name="org"))
-            session.add(Board(id=board_id, organization_id=org_id, name="b", slug="b"))
+            session.add(Project(id=project_id, organization_id=org_id, name="b", slug="b"))
             session.add(
                 Agent(
                     id=lead_id,
                     name="Lead",
-                    board_id=board_id,
+                    project_id=project_id,
                     gateway_id=uuid4(),
-                    is_board_lead=True,
+                    is_project_lead=True,
                     openclaw_session_id="agent:lead:session",
                 ),
             )
             session.add(
                 Task(
                     id=dep_id,
-                    board_id=board_id,
+                    project_id=project_id,
                     title="dep",
                     description=None,
                     status="inbox",
@@ -71,7 +72,7 @@ async def test_lead_dependency_only_update_allowed_when_task_blocked() -> None:
             session.add(
                 Task(
                     id=task_id,
-                    board_id=board_id,
+                    project_id=project_id,
                     title="t",
                     description=None,
                     status="review",
@@ -80,7 +81,7 @@ async def test_lead_dependency_only_update_allowed_when_task_blocked() -> None:
             )
             session.add(
                 TaskDependency(
-                    board_id=board_id,
+                    project_id=project_id,
                     task_id=task_id,
                     depends_on_task_id=dep_id,
                 ),
@@ -93,7 +94,7 @@ async def test_lead_dependency_only_update_allowed_when_task_blocked() -> None:
             assert task is not None
             blocked_by_before = await blocked_by_for_task(
                 session,
-                board_id=board_id,
+                project_id=project_id,
                 task_id=task_id,
             )
             assert blocked_by_before == [dep_id]
@@ -103,7 +104,7 @@ async def test_lead_dependency_only_update_allowed_when_task_blocked() -> None:
             update = _TaskUpdateInput(
                 task=task,
                 actor=ActorContext(actor_type="agent", agent=lead),
-                board_id=board_id,
+                project_id=project_id,
                 previous_status=task.status,
                 previous_assigned=task.assigned_agent_id,
                 status_requested=False,
@@ -115,7 +116,7 @@ async def test_lead_dependency_only_update_allowed_when_task_blocked() -> None:
                 custom_field_values_set=False,
             )
 
-            result = await _apply_lead_task_update(session, update=update)
+            result = await TaskService(session)._apply_lead_task_update(update=update)
             assert result.id == task_id
             assert result.is_blocked is True
             assert result.blocked_by_task_ids == [dep_id]

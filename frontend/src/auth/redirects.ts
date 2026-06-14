@@ -5,9 +5,7 @@ function isSafeRelativePath(value: string): boolean {
 }
 
 export function resolveSignInRedirectUrl(rawRedirect: string | null): string {
-  const fallback =
-    process.env.NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL ??
-    DEFAULT_SIGN_IN_REDIRECT;
+  const fallback = DEFAULT_SIGN_IN_REDIRECT;
 
   if (!rawRedirect) return fallback;
 

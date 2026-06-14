@@ -11,12 +11,12 @@ import { ApiError } from "@/api/mutator";
 import { streamAgentsApiV1AgentsStreamGet } from "@/api/generated/agents/agents";
 import { listActivityApiV1ActivityGet } from "@/api/generated/activity/activity";
 import {
-  getBoardSnapshotApiV1BoardsBoardIdSnapshotGet,
-  listBoardsApiV1BoardsGet,
-} from "@/api/generated/boards/boards";
-import { streamBoardMemoryApiV1BoardsBoardIdMemoryStreamGet } from "@/api/generated/board-memory/board-memory";
-import { streamApprovalsApiV1BoardsBoardIdApprovalsStreamGet } from "@/api/generated/approvals/approvals";
-import { streamTasksApiV1BoardsBoardIdTasksStreamGet } from "@/api/generated/tasks/tasks";
+  getProjectSnapshotApiV1ProjectsProjectIdSnapshotGet,
+  listProjectsApiV1ProjectsGet,
+} from "@/api/generated/projects/projects";
+import { streamProjectMemoryApiV1ProjectsProjectIdMemoryStreamGet } from "@/api/generated/project-memory/project-memory";
+import { streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGet } from "@/api/generated/approvals/approvals";
+import { streamTasksApiV1ProjectsProjectIdTasksStreamGet } from "@/api/generated/tasks/tasks";
 import {
   type getMyMembershipApiV1OrganizationsMeMemberGetResponse,
   useGetMyMembershipApiV1OrganizationsMeMemberGet,
@@ -25,8 +25,8 @@ import type {
   ActivityEventRead,
   AgentRead,
   ApprovalRead,
-  BoardMemoryRead,
-  BoardRead,
+  ProjectMemoryRead,
+  ProjectRead,
   TaskCommentRead,
   TaskRead,
 } from "@/api/generated/model";
@@ -87,8 +87,8 @@ type FeedItem = {
   agent_id: string | null;
   actor_name: string;
   actor_role: string | null;
-  board_id: string | null;
-  board_name: string | null;
+  project_id: string | null;
+  project_name: string | null;
   board_href: string | null;
   task_id: string | null;
   task_title: string | null;
@@ -98,7 +98,7 @@ type FeedItem = {
 
 type TaskMeta = {
   title: string;
-  boardId: string | null;
+  projectId: string | null;
 };
 
 type ActivityRouteParams = Record<string, string>;
@@ -149,23 +149,23 @@ const buildRouteHref = (
   },
 ): string => {
   if (routeName === "board.approvals") {
-    const boardId = routeParams.boardId;
-    if (boardId) {
-      return `/boards/${encodeURIComponent(boardId)}/approvals`;
+    const projectId = routeParams.projectId;
+    if (projectId) {
+      return `/projects/${encodeURIComponent(projectId)}/approvals`;
     }
   }
 
   if (routeName === "board") {
-    const boardId = routeParams.boardId;
-    if (boardId) {
+    const projectId = routeParams.projectId;
+    if (projectId) {
       const params = new URLSearchParams();
       Object.entries(routeParams).forEach(([key, value]) => {
-        if (key !== "boardId") params.set(key, value);
+        if (key !== "projectId") params.set(key, value);
       });
       const query = params.toString();
       return query
-        ? `/boards/${encodeURIComponent(boardId)}?${query}`
-        : `/boards/${encodeURIComponent(boardId)}`;
+        ? `/projects/${encodeURIComponent(projectId)}?${query}`
+        : `/projects/${encodeURIComponent(projectId)}`;
     }
   }
 
@@ -186,11 +186,11 @@ const buildRouteHref = (
 
 const buildBoardHref = (
   routeParams: ActivityRouteParams,
-  boardId: string | null,
+  projectId: string | null,
 ): string | null => {
-  const resolved = routeParams.boardId ?? boardId;
+  const resolved = routeParams.projectId ?? projectId;
   if (!resolved) return null;
-  return `/boards/${encodeURIComponent(resolved)}`;
+  return `/projects/${encodeURIComponent(resolved)}`;
 };
 
 const feedItemElementId = (id: string): string =>
@@ -337,19 +337,19 @@ const FeedCard = memo(function FeedCard({
               >
                 {eventLabel(item.event_type)}
               </span>
-              {item.board_href && item.board_name ? (
+              {item.board_href && item.project_name ? (
                 <Link
                   href={item.board_href}
                   className="font-semibold text-slate-700 hover:text-slate-900 hover:underline"
                 >
-                  {item.board_name}
+                  {item.project_name}
                 </Link>
-              ) : item.board_name ? (
+              ) : item.project_name ? (
                 <span className="font-semibold text-slate-700">
-                  {item.board_name}
+                  {item.project_name}
                 </span>
               ) : null}
-              {item.board_name ? (
+              {item.project_name ? (
                 <span className="text-slate-300">·</span>
               ) : null}
               <span className="font-medium text-slate-700">
@@ -424,11 +424,11 @@ export default function ActivityPage() {
   const [isFeedLoading, setIsFeedLoading] = useState(false);
   const [feedError, setFeedError] = useState<string | null>(null);
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
-  const [boards, setBoards] = useState<BoardRead[]>([]);
+  const [boards, setBoards] = useState<ProjectRead[]>([]);
 
   const feedItemsRef = useRef<FeedItem[]>([]);
   const seenIdsRef = useRef<Set<string>>(new Set());
-  const boardsByIdRef = useRef<Map<string, BoardRead>>(new Map());
+  const boardsByIdRef = useRef<Map<string, ProjectRead>>(new Map());
   const taskMetaByIdRef = useRef<Map<string, TaskMeta>>(new Map());
   const agentsByIdRef = useRef<Map<string, Agent>>(new Map());
   const approvalsByIdRef = useRef<Map<string, ApprovalRead>>(new Map());
@@ -437,7 +437,7 @@ export default function ActivityPage() {
     feedItemsRef.current = feedItems;
   }, [feedItems]);
 
-  const boardIds = useMemo(() => boards.map((board) => board.id), [boards]);
+  const projectIds = useMemo(() => boards.map((board) => board.id), [boards]);
 
   const pushFeedItem = useCallback((item: FeedItem) => {
     setFeedItems((prev) => {
@@ -472,20 +472,20 @@ export default function ActivityPage() {
     [currentUserDisplayName],
   );
 
-  const boardNameForId = useCallback((boardId: string | null | undefined) => {
-    if (!boardId) return null;
-    return boardsByIdRef.current.get(boardId)?.name ?? null;
+  const boardNameForId = useCallback((projectId: string | null | undefined) => {
+    if (!projectId) return null;
+    return boardsByIdRef.current.get(projectId)?.name ?? null;
   }, []);
 
   const updateTaskMeta = useCallback(
     (
-      task: { id: string; title: string; board_id?: string | null },
+      task: { id: string; title: string; project_id?: string | null },
       fallbackBoardId: string,
     ) => {
-      const boardId = task.board_id ?? fallbackBoardId;
+      const projectId = task.project_id ?? fallbackBoardId;
       taskMetaByIdRef.current.set(task.id, {
         title: task.title,
-        boardId,
+        projectId,
       });
     },
     [],
@@ -503,19 +503,19 @@ export default function ActivityPage() {
       const routeName = event.route_name ?? null;
       const routeParams = normalizeRouteParams(event.route_params);
       const taskId = event.task_id ?? routeParams.taskId ?? null;
-      const boardId =
-        meta?.boardId ??
-        event.board_id ??
-        routeParams.boardId ??
+      const projectId =
+        meta?.projectId ??
+        event.project_id ??
+        routeParams.projectId ??
         fallbackBoardId ??
         null;
       const fallbackRouteParams: ActivityRouteParams = {};
-      if (boardId) fallbackRouteParams.boardId = boardId;
+      if (projectId) fallbackRouteParams.projectId = projectId;
       if (taskId) fallbackRouteParams.taskId = taskId;
       const effectiveRouteParams =
         Object.keys(routeParams).length > 0 ? routeParams : fallbackRouteParams;
       const effectiveRouteName =
-        routeName ?? (boardId ? "board" : "activity");
+        routeName ?? (projectId ? "board" : "activity");
       const author = resolveAuthor(event.agent_id, currentUserDisplayName);
       return {
         id: `activity:${event.id}`,
@@ -526,9 +526,9 @@ export default function ActivityPage() {
         agent_id: author.id,
         actor_name: author.name,
         actor_role: author.role,
-        board_id: boardId,
-        board_name: boardNameForId(boardId),
-        board_href: buildBoardHref(effectiveRouteParams, boardId),
+        project_id: projectId,
+        project_name: boardNameForId(projectId),
+        board_href: buildBoardHref(effectiveRouteParams, projectId),
         task_id: taskId,
         task_title: meta?.title ?? null,
         title:
@@ -549,10 +549,10 @@ export default function ActivityPage() {
       const meta = comment.task_id
         ? taskMetaByIdRef.current.get(comment.task_id)
         : null;
-      const boardId = meta?.boardId ?? fallbackBoardId;
+      const projectId = meta?.projectId ?? fallbackBoardId;
       const taskId = comment.task_id ?? null;
       const routeParams: ActivityRouteParams = {};
-      if (boardId) routeParams.boardId = boardId;
+      if (projectId) routeParams.projectId = projectId;
       if (taskId) routeParams.taskId = taskId;
       routeParams.commentId = comment.id;
       const author = resolveAuthor(comment.agent_id, currentUserDisplayName);
@@ -565,9 +565,9 @@ export default function ActivityPage() {
         agent_id: author.id,
         actor_name: author.name,
         actor_role: author.role,
-        board_id: boardId,
-        board_name: boardNameForId(boardId),
-        board_href: buildBoardHref(routeParams, boardId),
+        project_id: projectId,
+        project_name: boardNameForId(projectId),
+        board_href: buildBoardHref(routeParams, projectId),
         task_id: taskId,
         task_title: meta?.title ?? null,
         title:
@@ -586,7 +586,7 @@ export default function ActivityPage() {
   const mapApprovalEvent = useCallback(
     (
       approval: ApprovalRead,
-      boardId: string,
+      projectId: string,
       previous: ApprovalRead | null = null,
     ): FeedItem => {
       const nextStatus = approval.status ?? "pending";
@@ -630,7 +630,7 @@ export default function ActivityPage() {
       const taskMeta = approval.task_id
         ? taskMetaByIdRef.current.get(approval.task_id)
         : null;
-      const routeParams: ActivityRouteParams = { boardId };
+      const routeParams: ActivityRouteParams = { projectId };
       const taskId = approval.task_id ?? null;
 
       return {
@@ -642,9 +642,9 @@ export default function ActivityPage() {
         agent_id: author.id,
         actor_name: author.name,
         actor_role: author.role,
-        board_id: boardId,
-        board_name: boardNameForId(boardId),
-        board_href: buildBoardHref(routeParams, boardId),
+        project_id: projectId,
+        project_name: boardNameForId(projectId),
+        board_href: buildBoardHref(routeParams, projectId),
         task_id: taskId,
         task_title: taskMeta?.title ?? null,
         title: `Approval · ${action}`,
@@ -660,14 +660,14 @@ export default function ActivityPage() {
   );
 
   const mapBoardChat = useCallback(
-    (memory: BoardMemoryRead, boardId: string): FeedItem => {
+    (memory: ProjectMemoryRead, projectId: string): FeedItem => {
       const content = (memory.content ?? "").trim();
       const actorName = resolveHumanActorName(
         memory.source,
         currentUserDisplayName,
       );
       const command = content.startsWith("/");
-      const routeParams: ActivityRouteParams = { boardId, panel: "chat" };
+      const routeParams: ActivityRouteParams = { projectId, panel: "chat" };
       return {
         id: `chat:${memory.id}`,
         created_at: memory.created_at,
@@ -677,9 +677,9 @@ export default function ActivityPage() {
         agent_id: null,
         actor_name: actorName,
         actor_role: null,
-        board_id: boardId,
-        board_name: boardNameForId(boardId),
-        board_href: buildBoardHref(routeParams, boardId),
+        project_id: projectId,
+        project_name: boardNameForId(projectId),
+        board_href: buildBoardHref(routeParams, projectId),
         task_id: null,
         task_title: null,
         title: command ? "Board command" : "Board chat",
@@ -707,7 +707,7 @@ export default function ActivityPage() {
       const profileChanged =
         Boolean(previous) &&
         (previous?.name !== agent.name ||
-          previous?.is_board_lead !== agent.is_board_lead ||
+          previous?.is_project_lead !== agent.is_project_lead ||
           JSON.stringify(previous?.identity_profile ?? {}) !==
             JSON.stringify(agent.identity_profile ?? {}));
 
@@ -740,9 +740,9 @@ export default function ActivityPage() {
             : kind === "agent.offline"
               ? `${agent.name} is offline.`
               : `${agent.name} updated (${humanizeStatus(nextStatus)}).`;
-      const boardId = agent.board_id ?? null;
-      const routeParams: ActivityRouteParams = boardId
-        ? { boardId }
+      const projectId = agent.project_id ?? null;
+      const routeParams: ActivityRouteParams = projectId
+        ? { projectId }
         : {};
 
       return {
@@ -754,14 +754,14 @@ export default function ActivityPage() {
         agent_id: agent.id,
         actor_name: agent.name,
         actor_role: roleFromAgent(agent),
-        board_id: boardId,
-        board_name: boardNameForId(boardId),
-        board_href: buildBoardHref(routeParams, boardId),
+        project_id: projectId,
+        project_name: boardNameForId(projectId),
+        board_href: buildBoardHref(routeParams, projectId),
         task_id: null,
         task_title: null,
         title: `Agent · ${agent.name}`,
         context_href:
-          boardId === null
+          projectId === null
             ? null
             : buildRouteHref("board", routeParams, {
                 eventId: agent.id,
@@ -807,9 +807,9 @@ export default function ActivityPage() {
 
     const loadInitial = async () => {
       try {
-        const nextBoards: BoardRead[] = [];
+        const nextBoards: ProjectRead[] = [];
         for (let offset = 0; offset < PAGED_MAX; offset += PAGED_LIMIT) {
-          const result = await listBoardsApiV1BoardsGet({
+          const result = await listProjectsApiV1ProjectsGet({
             limit: PAGED_LIMIT,
             offset,
           });
@@ -836,7 +836,7 @@ export default function ActivityPage() {
         // Snapshot seeding gives org-level approvals/agents/chat and task metadata.
         const snapshotResults = await Promise.allSettled(
           nextBoards.map((board) =>
-            getBoardSnapshotApiV1BoardsBoardIdSnapshotGet(board.id),
+            getProjectSnapshotApiV1ProjectsProjectIdSnapshotGet(board.id),
           ),
         );
         if (cancelled) return;
@@ -850,7 +850,7 @@ export default function ActivityPage() {
           (snapshot.tasks ?? []).forEach((task) => {
             taskMetaByIdRef.current.set(task.id, {
               title: task.title,
-              boardId: board.id,
+              projectId: board.id,
             });
           });
 
@@ -935,12 +935,12 @@ export default function ActivityPage() {
   useEffect(() => {
     if (!isPageActive) return;
     if (!isSignedIn) return;
-    if (boardIds.length === 0) return;
+    if (projectIds.length === 0) return;
 
     let cancelled = false;
     const cleanups: Array<() => void> = [];
 
-    boardIds.forEach((boardId, index) => {
+    projectIds.forEach((projectId, index) => {
       const boardDelay = index * STREAM_CONNECT_SPACING_MS;
       const abortController = new AbortController();
       const backoff = createExponentialBackoff(SSE_RECONNECT_BACKOFF);
@@ -951,11 +951,11 @@ export default function ActivityPage() {
         try {
           const since = latestTimestamp(
             (item) =>
-              item.board_id === boardId && isTaskEventType(item.event_type),
+              item.project_id === projectId && isTaskEventType(item.event_type),
           );
           const streamResult =
-            await streamTasksApiV1BoardsBoardIdTasksStreamGet(
-              boardId,
+            await streamTasksApiV1ProjectsProjectIdTasksStreamGet(
+              projectId,
               since ? { since } : undefined,
               {
                 headers: { Accept: "text/event-stream" },
@@ -1004,10 +1004,10 @@ export default function ActivityPage() {
                     comment?: TaskCommentRead;
                   };
                   if (payload.task) {
-                    updateTaskMeta(payload.task, boardId);
+                    updateTaskMeta(payload.task, projectId);
                   }
                   if (payload.activity) {
-                    const mapped = mapTaskActivity(payload.activity, boardId);
+                    const mapped = mapTaskActivity(payload.activity, projectId);
                     if (mapped) {
                       if (!mapped.task_title && payload.task?.title) {
                         mapped.task_title = payload.task.title;
@@ -1019,7 +1019,7 @@ export default function ActivityPage() {
                     payload.type === "task.comment" &&
                     payload.comment
                   ) {
-                    pushFeedItem(mapTaskComment(payload.comment, boardId));
+                    pushFeedItem(mapTaskComment(payload.comment, projectId));
                   }
                 } catch {
                   // Ignore malformed payloads.
@@ -1065,7 +1065,7 @@ export default function ActivityPage() {
       cleanups.forEach((fn) => fn());
     };
   }, [
-    boardIds,
+    projectIds,
     boardNameForId,
     isPageActive,
     isSignedIn,
@@ -1079,12 +1079,12 @@ export default function ActivityPage() {
   useEffect(() => {
     if (!isPageActive) return;
     if (!isSignedIn) return;
-    if (boardIds.length === 0) return;
+    if (projectIds.length === 0) return;
 
     let cancelled = false;
     const cleanups: Array<() => void> = [];
 
-    boardIds.forEach((boardId, index) => {
+    projectIds.forEach((projectId, index) => {
       const boardDelay = index * STREAM_CONNECT_SPACING_MS;
       const abortController = new AbortController();
       const backoff = createExponentialBackoff(SSE_RECONNECT_BACKOFF);
@@ -1095,12 +1095,12 @@ export default function ActivityPage() {
         try {
           const since = latestTimestamp(
             (item) =>
-              item.board_id === boardId &&
+              item.project_id === projectId &&
               item.event_type.startsWith("approval."),
           );
           const streamResult =
-            await streamApprovalsApiV1BoardsBoardIdApprovalsStreamGet(
-              boardId,
+            await streamApprovalsApiV1ProjectsProjectIdApprovalsStreamGet(
+              projectId,
               since ? { since } : undefined,
               {
                 headers: { Accept: "text/event-stream" },
@@ -1153,7 +1153,7 @@ export default function ActivityPage() {
                       payload.approval,
                     );
                     pushFeedItem(
-                      mapApprovalEvent(payload.approval, boardId, previous),
+                      mapApprovalEvent(payload.approval, projectId, previous),
                     );
                   }
                 } catch {
@@ -1200,7 +1200,7 @@ export default function ActivityPage() {
       cleanups.forEach((fn) => fn());
     };
   }, [
-    boardIds,
+    projectIds,
     isPageActive,
     isSignedIn,
     latestTimestamp,
@@ -1211,12 +1211,12 @@ export default function ActivityPage() {
   useEffect(() => {
     if (!isPageActive) return;
     if (!isSignedIn) return;
-    if (boardIds.length === 0) return;
+    if (projectIds.length === 0) return;
 
     let cancelled = false;
     const cleanups: Array<() => void> = [];
 
-    boardIds.forEach((boardId, index) => {
+    projectIds.forEach((projectId, index) => {
       const boardDelay = index * STREAM_CONNECT_SPACING_MS;
       const abortController = new AbortController();
       const backoff = createExponentialBackoff(SSE_RECONNECT_BACKOFF);
@@ -1227,14 +1227,14 @@ export default function ActivityPage() {
         try {
           const since = latestTimestamp(
             (item) =>
-              item.board_id === boardId &&
+              item.project_id === projectId &&
               (item.event_type === "board.chat" ||
                 item.event_type === "board.command"),
           );
           const params = { is_chat: true, ...(since ? { since } : {}) };
           const streamResult =
-            await streamBoardMemoryApiV1BoardsBoardIdMemoryStreamGet(
-              boardId,
+            await streamProjectMemoryApiV1ProjectsProjectIdMemoryStreamGet(
+              projectId,
               params,
               {
                 headers: { Accept: "text/event-stream" },
@@ -1277,10 +1277,10 @@ export default function ActivityPage() {
               if (eventType === "memory" && data) {
                 try {
                   const payload = JSON.parse(data) as {
-                    memory?: BoardMemoryRead;
+                    memory?: ProjectMemoryRead;
                   };
                   if (payload.memory?.tags?.includes("chat")) {
-                    pushFeedItem(mapBoardChat(payload.memory, boardId));
+                    pushFeedItem(mapBoardChat(payload.memory, projectId));
                   }
                 } catch {
                   // Ignore malformed payloads.
@@ -1326,7 +1326,7 @@ export default function ActivityPage() {
       cleanups.forEach((fn) => fn());
     };
   }, [
-    boardIds,
+    projectIds,
     isPageActive,
     isSignedIn,
     latestTimestamp,

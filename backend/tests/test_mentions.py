@@ -2,12 +2,12 @@
 
 from uuid import uuid4
 
-from app.models.agents import Agent
-from app.services.mentions import extract_mentions, matches_agent_mention
+from app.infrastructure.models.agents import Agent
+from app.domain.services.mention import extract_mentions, matches_agent_mention
 
 
-def _agent(name: str, *, is_board_lead: bool = False) -> Agent:
-    return Agent(name=name, gateway_id=uuid4(), is_board_lead=is_board_lead)
+def _agent(name: str, *, is_project_lead: bool = False) -> Agent:
+    return Agent(name=name, gateway_id=uuid4(), is_project_lead=is_project_lead)
 
 
 def test_extract_mentions_parses_tokens():
@@ -36,7 +36,7 @@ def test_matches_agent_mention_matches_full_normalized_name():
 
 
 def test_matches_agent_mention_supports_reserved_lead_shortcut():
-    lead = _agent("Riya", is_board_lead=True)
-    other = _agent("Lead", is_board_lead=False)
+    lead = _agent("Riya", is_project_lead=True)
+    other = _agent("Lead", is_project_lead=False)
     assert matches_agent_mention(lead, {"lead"}) is True
     assert matches_agent_mention(other, {"lead"}) is False

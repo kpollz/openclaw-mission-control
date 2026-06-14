@@ -17,7 +17,7 @@ Use these templates to control what an agent sees in workspace files like:
 - `USER.md`
 - `MEMORY.md`
 
-When a gateway template sync runs, these templates are rendered with agent/board context and written into each workspace.
+When a gateway template sync runs, these templates are rendered with agent/project context and written into each workspace.
 
 ## How rendering works
 
@@ -31,7 +31,7 @@ Defined in `backend/app/services/openclaw/provisioning.py` (`_template_env()`):
 
 ### Context builders
 
-- Board agent context: `_build_context()`
+- Project agent context: `_build_context()`
 - Main agent context: `_build_main_context()`
 - User mapping: `_user_context()`
 - Identity mapping: `_identity_context()`
@@ -57,11 +57,11 @@ python backend/scripts/sync_gateway_templates.py --gateway-id <uuid>
 
 ## Files included in sync
 
-Board-agent default synced files are defined in:
+Project-agent default synced files are defined in:
 
 - `backend/app/services/openclaw/constants.py` (`DEFAULT_GATEWAY_FILES`)
 
-Board-lead file contract is defined in:
+Project-lead file contract is defined in:
 
 - `backend/app/services/openclaw/constants.py` (`LEAD_GATEWAY_FILES`)
 
@@ -69,9 +69,9 @@ Lead-only override mapping (when needed) is defined in:
 
 - `backend/app/services/openclaw/constants.py` (`LEAD_TEMPLATE_MAP`)
 
-Shared board-agent mapping (lead + non-lead) is defined in:
+Shared project-agent mapping (lead + non-lead) is defined in:
 
-- `backend/app/services/openclaw/constants.py` (`BOARD_SHARED_TEMPLATE_MAP`)
+- `backend/app/services/openclaw/constants.py` (`PROJECT_SHARED_TEMPLATE_MAP`)
 
 Main-agent template mapping is defined in:
 
@@ -80,29 +80,29 @@ Main-agent template mapping is defined in:
 Provisioning selection logic is implemented in:
 
 - `backend/app/services/openclaw/provisioning.py`
-  - `BoardAgentLifecycleManager._file_names()`
-  - `BoardAgentLifecycleManager._template_overrides()`
+  - `ProjectAgentLifecycleManager._file_names()`
+  - `ProjectAgentLifecycleManager._template_overrides()`
   - `GatewayMainAgentLifecycleManager._template_overrides()`
 
 Lead-only stale template files are cleaned up during sync by:
 
-- `BoardAgentLifecycleManager._stale_file_candidates()`
+- `ProjectAgentLifecycleManager._stale_file_candidates()`
 
 ## HEARTBEAT.md selection logic
 
-All agent types (main + board lead + board non-lead) render `HEARTBEAT.md` from:
+All agent types (main + project lead + project non-lead) render `HEARTBEAT.md` from:
 
-- `BOARD_HEARTBEAT.md.j2` via `BOARD_SHARED_TEMPLATE_MAP`
+- `PROJECT_HEARTBEAT.md.j2` via `PROJECT_SHARED_TEMPLATE_MAP`
 
 Role-specific behavior is controlled inside that template with:
 - `is_main_agent`
-- `is_board_lead`
+- `is_project_lead`
 
 ## OpenAPI refresh location
 
 Lead OpenAPI download/index generation is intentionally documented in:
 
-- `BOARD_TOOLS.md.j2`
+- `PROJECT_TOOLS.md.j2`
 
 This avoids relying on startup hooks to populate `api/openapi.json`.
 
@@ -125,27 +125,27 @@ This avoids relying on startup hooks to populate `api/openapi.json`.
 - `identity_autonomy_level`, `identity_verbosity`, `identity_output_format`, `identity_update_cadence`
 - `identity_purpose`, `identity_personality`, `identity_custom_instructions`
 
-### Board-agent-only keys
+### Project-agent-only keys
 
-- `board_id`, `board_name`, `board_type`
-- `board_objective`, `board_success_metrics`, `board_target_date`
-- `board_goal_confirmed`, `is_board_lead`
+- `project_id`, `project_name`, `project_type`
+- `project_objective`, `project_success_metrics`, `project_target_date`
+- `project_goal_confirmed`, `is_project_lead`
 - `workspace_path`
-- `board_rule_require_approval_for_done`
-- `board_rule_require_review_before_done`
-- `board_rule_comment_required_for_review`
-- `board_rule_block_status_changes_with_pending_approval`
-- `board_rule_only_lead_can_change_status`
-- `board_rule_max_agents`
+- `project_rule_require_approval_for_done`
+- `project_rule_require_review_before_done`
+- `project_rule_comment_required_for_review`
+- `project_rule_block_status_changes_with_pending_approval`
+- `project_rule_only_lead_can_change_status`
+- `project_rule_max_agents`
 
 ## OpenAPI role tags for agents
 
 Agent-facing endpoints expose role tags in OpenAPI so heartbeat files can filter
 operations without path regex hacks:
 
-- `agent-lead`: board lead workflows (delegation/review/coordination)
-- `agent-worker`: non-lead board execution workflows
-- `agent-main`: gateway main / cross-board control-plane workflows
+- `agent-lead`: project lead workflows (delegation/review/coordination)
+- `agent-worker`: non-lead project execution workflows
+- `agent-main`: gateway main / cross-project control-plane workflows
 
 Example filter:
 

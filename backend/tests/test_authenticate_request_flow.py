@@ -8,9 +8,9 @@ from typing import Any
 import pytest
 from fastapi import HTTPException
 
-from app.core import auth
-from app.core.auth_mode import AuthMode
-from app.models.users import User
+from app.infrastructure.auth import clerk_local_auth as auth
+from app.shared.auth_mode import AuthMode
+from app.infrastructure.models.users import User
 
 
 class _FakeSession:
@@ -70,7 +70,7 @@ async def test_get_auth_context_uses_request_state_payload_claims(
     monkeypatch.setattr(auth, "_authenticate_clerk_request", _fake_authenticate)
     monkeypatch.setattr(auth, "_get_or_sync_user", _fake_get_or_sync_user)
 
-    import app.services.organizations as orgs
+    import app.application.use_cases.organizations.service as orgs
 
     monkeypatch.setattr(orgs, "ensure_member_for_user", _fake_ensure_member_for_user)
 

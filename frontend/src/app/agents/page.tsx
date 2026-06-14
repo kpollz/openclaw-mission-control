@@ -21,10 +21,10 @@ import {
   useListAgentsApiV1AgentsGet,
 } from "@/api/generated/agents/agents";
 import {
-  type listBoardsApiV1BoardsGetResponse,
-  getListBoardsApiV1BoardsGetQueryKey,
-  useListBoardsApiV1BoardsGet,
-} from "@/api/generated/boards/boards";
+  type listProjectsApiV1ProjectsGetResponse,
+  getListProjectsApiV1ProjectsGetQueryKey,
+  useListProjectsApiV1ProjectsGet,
+} from "@/api/generated/projects/projects";
 import { type AgentRead } from "@/api/generated/model";
 import { createOptimisticListDeleteMutation } from "@/lib/list-delete";
 import { useOrganizationMembership } from "@/lib/use-organization-membership";
@@ -34,7 +34,7 @@ const AGENT_SORTABLE_COLUMNS = [
   "name",
   "status",
   "openclaw_session_id",
-  "board_id",
+  "project_id",
   "last_seen_at",
   "updated_at",
 ];
@@ -53,11 +53,11 @@ export default function AgentsPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<AgentRead | null>(null);
 
-  const boardsKey = getListBoardsApiV1BoardsGetQueryKey();
+  const boardsKey = getListProjectsApiV1ProjectsGetQueryKey();
   const agentsKey = getListAgentsApiV1AgentsGetQueryKey();
 
-  const boardsQuery = useListBoardsApiV1BoardsGet<
-    listBoardsApiV1BoardsGetResponse,
+  const boardsQuery = useListProjectsApiV1ProjectsGet<
+    listProjectsApiV1ProjectsGetResponse,
     ApiError
   >(undefined, {
     query: {
@@ -155,7 +155,7 @@ export default function AgentsPage() {
             emptyState={{
               title: "No agents yet",
               description:
-                "Create your first agent to start executing tasks on this board.",
+                "Create your first agent to start executing tasks on this project.",
               actionHref: "/agents/new",
               actionLabel: "Create your first agent",
             }}

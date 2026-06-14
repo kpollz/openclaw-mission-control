@@ -10,15 +10,15 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { ApiError } from "@/api/mutator";
 import {
-  type listBoardsApiV1BoardsGetResponse,
-  useListBoardsApiV1BoardsGet,
-} from "@/api/generated/boards/boards";
+  type listProjectsApiV1ProjectsGetResponse,
+  useListProjectsApiV1ProjectsGet,
+} from "@/api/generated/projects/projects";
 import {
   type listOrgCustomFieldsApiV1OrganizationsMeCustomFieldsGetResponse,
   getListOrgCustomFieldsApiV1OrganizationsMeCustomFieldsGetQueryKey,
   useListOrgCustomFieldsApiV1OrganizationsMeCustomFieldsGet,
   useUpdateOrgCustomFieldApiV1OrganizationsMeCustomFieldsTaskCustomFieldDefinitionIdPatch,
-} from "@/api/generated/org-custom-fields/org-custom-fields";
+} from "@/api/generated/custom-fields/custom-fields";
 import type { TaskCustomFieldDefinitionUpdate } from "@/api/generated/model";
 import { CustomFieldForm } from "@/components/custom-fields/CustomFieldForm";
 import { DashboardPageLayout } from "@/components/templates/DashboardPageLayout";
@@ -58,8 +58,8 @@ export default function EditCustomFieldPage() {
     );
   }, [customFieldsQuery.data, fieldId]);
 
-  const boardsQuery = useListBoardsApiV1BoardsGet<
-    listBoardsApiV1BoardsGetResponse,
+  const boardsQuery = useListProjectsApiV1ProjectsGet<
+    listProjectsApiV1ProjectsGetResponse,
     ApiError
   >(
     { limit: 200 },
@@ -123,7 +123,7 @@ export default function EditCustomFieldPage() {
         signUpForceRedirectUrl: "/custom-fields",
       }}
       title="Edit custom field"
-      description="Update custom-field metadata and board bindings."
+      description="Update custom-field metadata and project bindings."
       isAdmin={isAdmin}
       adminOnlyMessage="Only organization owners and admins can manage custom fields."
       stickyHeader
@@ -143,7 +143,7 @@ export default function EditCustomFieldPage() {
           key={field.id}
           mode="edit"
           initialFormState={deriveFormStateFromCustomField(field)}
-          initialBoardIds={field.board_ids ?? []}
+          initialProjectIds={field.project_ids ?? []}
           boards={boards}
           boardsLoading={boardsQuery.isLoading}
           boardsError={boardsQuery.error?.message ?? null}

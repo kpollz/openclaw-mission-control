@@ -10,35 +10,33 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi_pagination import add_pagination
 
-from app.api.activity import router as activity_router
-from app.api.agent import router as agent_router
-from app.api.agents import router as agents_router
-from app.api.approvals import router as approvals_router
-from app.api.auth import router as auth_router
-from app.api.board_group_memory import router as board_group_memory_router
-from app.api.board_groups import router as board_groups_router
-from app.api.board_memory import router as board_memory_router
-from app.api.board_onboarding import router as board_onboarding_router
-from app.api.board_webhooks import router as board_webhooks_router
-from app.api.boards import router as boards_router
-from app.api.gateway import router as gateway_router
-from app.api.gateways import router as gateways_router
-from app.api.metrics import router as metrics_router
-from app.api.organizations import router as organizations_router
-from app.api.skills_marketplace import router as skills_marketplace_router
-from app.api.souls_directory import router as souls_directory_router
-from app.api.tags import router as tags_router
-from app.api.task_custom_fields import router as task_custom_fields_router
-from app.api.tasks import router as tasks_router
-from app.api.users import router as users_router
-from app.core.config import settings
-from app.core.error_handling import install_error_handling
-from app.core.logging import configure_logging, get_logger
-from app.core.rate_limit import validate_rate_limit_redis
-from app.core.rate_limit_backend import RateLimitBackend
-from app.core.security_headers import SecurityHeadersMiddleware
-from app.db.session import init_db
-from app.schemas.health import HealthStatusResponse
+from app.presentation.api.activity import router as activity_router
+from app.presentation.api.agent import router as agent_router
+from app.presentation.api.agents import router as agents_router
+from app.presentation.api.approvals import router as approvals_router
+from app.presentation.api.auth import router as auth_router
+from app.presentation.api.project_memory import router as project_memory_router
+from app.presentation.api.project_onboarding import router as project_onboarding_router
+from app.presentation.api.project_webhooks import router as project_webhooks_router
+from app.presentation.api.projects import router as projects_router
+from app.presentation.api.gateway import router as gateway_router
+from app.presentation.api.gateways import router as gateways_router
+from app.presentation.api.metrics import router as metrics_router
+from app.presentation.api.organizations import router as organizations_router
+from app.presentation.api.skills_marketplace import router as skills_marketplace_router
+from app.presentation.api.souls_directory import router as souls_directory_router
+from app.presentation.api.tags import router as tags_router
+from app.presentation.api.task_custom_fields import router as task_custom_fields_router
+from app.presentation.api.tasks import router as tasks_router
+from app.presentation.api.users import router as users_router
+from app.shared.config import settings
+from app.presentation.error_handling import install_error_handling
+from app.shared.logging import configure_logging, get_logger
+from app.shared.rate_limit import validate_rate_limit_redis
+from app.shared.rate_limit_backend import RateLimitBackend
+from app.shared.security_headers import SecurityHeadersMiddleware
+from app.infrastructure.database.engine import init_db
+from app.presentation.schemas.health import HealthStatusResponse
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -64,7 +62,7 @@ OPENAPI_TAGS = [
     },
     {
         "name": "activity",
-        "description": "Activity feed and audit timeline endpoints across boards and operations.",
+        "description": "Activity feed and audit timeline endpoints across projects and operations.",
     },
     {
         "name": "gateways",
@@ -72,7 +70,7 @@ OPENAPI_TAGS = [
     },
     {
         "name": "metrics",
-        "description": "Aggregated operational and board analytics metrics endpoints.",
+        "description": "Aggregated operational and project analytics metrics endpoints.",
     },
     {
         "name": "organizations",
@@ -87,32 +85,24 @@ OPENAPI_TAGS = [
         "description": "Skills marketplace, install, uninstall, and synchronization endpoints.",
     },
     {
-        "name": "board-groups",
-        "description": "Board group CRUD, assignment, and grouping workflow endpoints.",
+        "name": "projects",
+        "description": "Project lifecycle, configuration, and project-level management endpoints.",
     },
     {
-        "name": "board-group-memory",
-        "description": "Shared memory endpoints scoped to board groups and grouped boards.",
+        "name": "project-memory",
+        "description": "Project-scoped memory read/write endpoints for persistent context.",
     },
     {
-        "name": "boards",
-        "description": "Board lifecycle, configuration, and board-level management endpoints.",
+        "name": "project-webhooks",
+        "description": "Project webhook registration, delivery config, and lifecycle endpoints.",
     },
     {
-        "name": "board-memory",
-        "description": "Board-scoped memory read/write endpoints for persistent context.",
-    },
-    {
-        "name": "board-webhooks",
-        "description": "Board webhook registration, delivery config, and lifecycle endpoints.",
-    },
-    {
-        "name": "board-onboarding",
-        "description": "Board onboarding state, setup actions, and onboarding workflow endpoints.",
+        "name": "project-onboarding",
+        "description": "Project onboarding state, setup actions, and onboarding workflow endpoints.",
     },
     {
         "name": "approvals",
-        "description": "Approval request, review, and status-tracking operations for board tasks.",
+        "description": "Approval request, review, and status-tracking operations for project tasks.",
     },
     {
         "name": "tasks",
@@ -120,7 +110,7 @@ OPENAPI_TAGS = [
     },
     {
         "name": "custom-fields",
-        "description": "Organization custom-field definitions and board assignment endpoints.",
+        "description": "Organization custom-field definitions and project assignment endpoints.",
     },
     {
         "name": "tags",
@@ -134,7 +124,7 @@ OPENAPI_TAGS = [
         "name": "agent",
         "description": (
             "Agent-scoped API surface. All endpoints require `X-Agent-Token` and are "
-            "constrained by agent board access policies."
+            "constrained by agent project access policies."
         ),
     },
     {
@@ -147,14 +137,14 @@ OPENAPI_TAGS = [
     {
         "name": "agent-worker",
         "description": (
-            "Worker workflows: task execution, task comments, and board/group context "
+            "Worker workflows: task execution, task comments, and project/group context "
             "reads/writes used during heartbeat loops."
         ),
     },
     {
         "name": "agent-main",
         "description": (
-            "Gateway-main control workflows that message board leads or broadcast "
+            "Gateway-main control workflows that message project leads or broadcast "
             "coordination requests."
         ),
     },
@@ -169,12 +159,10 @@ _OPENAPI_EXAMPLE_TAGS = {
     "organizations",
     "souls-directory",
     "skills",
-    "board-groups",
-    "board-group-memory",
-    "boards",
-    "board-memory",
-    "board-webhooks",
-    "board-onboarding",
+    "projects",
+    "project-memory",
+    "project-webhooks",
+    "project-onboarding",
     "approvals",
     "tasks",
     "custom-fields",
@@ -547,12 +535,10 @@ api_v1.include_router(metrics_router)
 api_v1.include_router(organizations_router)
 api_v1.include_router(souls_directory_router)
 api_v1.include_router(skills_marketplace_router)
-api_v1.include_router(board_groups_router)
-api_v1.include_router(board_group_memory_router)
-api_v1.include_router(boards_router)
-api_v1.include_router(board_memory_router)
-api_v1.include_router(board_webhooks_router)
-api_v1.include_router(board_onboarding_router)
+api_v1.include_router(projects_router)
+api_v1.include_router(project_memory_router)
+api_v1.include_router(project_webhooks_router)
+api_v1.include_router(project_onboarding_router)
 api_v1.include_router(approvals_router)
 api_v1.include_router(tasks_router)
 api_v1.include_router(task_custom_fields_router)

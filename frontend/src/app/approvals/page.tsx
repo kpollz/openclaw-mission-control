@@ -9,11 +9,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { ApiError } from "@/api/mutator";
 import {
-  listApprovalsApiV1BoardsBoardIdApprovalsGet,
-  updateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatch,
+  listApprovalsApiV1ProjectsProjectIdApprovalsGet,
+  updateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatch,
 } from "@/api/generated/approvals/approvals";
-import { useListBoardsApiV1BoardsGet } from "@/api/generated/boards/boards";
-import type { ApprovalRead, BoardRead } from "@/api/generated/model";
+import { useListProjectsApiV1ProjectsGet } from "@/api/generated/projects/projects";
+import type { ApprovalRead, ProjectRead } from "@/api/generated/model";
 import { BoardApprovalsPanel } from "@/components/BoardApprovalsPanel";
 import { DashboardSidebar } from "@/components/organisms/DashboardSidebar";
 import { DashboardShell } from "@/components/templates/DashboardShell";
@@ -28,7 +28,7 @@ function GlobalApprovalsInner() {
   const { isSignedIn } = useAuth();
   const queryClient = useQueryClient();
 
-  const boardsQuery = useListBoardsApiV1BoardsGet(undefined, {
+  const boardsQuery = useListProjectsApiV1ProjectsGet(undefined, {
     query: {
       enabled: Boolean(isSignedIn),
       refetchInterval: 30_000,
@@ -44,19 +44,19 @@ function GlobalApprovalsInner() {
   }, [boardsQuery.data]);
 
   const boardLabelById = useMemo(() => {
-    const entries = boards.map((board: BoardRead) => [board.id, board.name]);
+    const entries = boards.map((board: ProjectRead) => [board.id, board.name]);
     return Object.fromEntries(entries) as Record<string, string>;
   }, [boards]);
 
-  const boardIdsKey = useMemo(() => {
+  const projectIdsKey = useMemo(() => {
     const ids = boards.map((board) => board.id);
     ids.sort();
     return ids.join(",");
   }, [boards]);
 
   const approvalsKey = useMemo(
-    () => ["approvals", "global", boardIdsKey] as const,
-    [boardIdsKey],
+    () => ["approvals", "global", projectIdsKey] as const,
+    [projectIdsKey],
   );
 
   const approvalsQuery = useQuery<GlobalApprovalsData, ApiError>({
@@ -68,7 +68,7 @@ function GlobalApprovalsInner() {
     queryFn: async () => {
       const results = await Promise.allSettled(
         boards.map(async (board) => {
-          const response = await listApprovalsApiV1BoardsBoardIdApprovalsGet(
+          const response = await listApprovalsApiV1ProjectsProjectIdApprovalsGet(
             board.id,
             { limit: 200 },
             { cache: "no-store" },
@@ -78,7 +78,7 @@ function GlobalApprovalsInner() {
               `Failed to load approvals for ${board.name} (status ${response.status}).`,
             );
           }
-          return { boardId: board.id, approvals: response.data.items ?? [] };
+          return { projectId: board.id, approvals: response.data.items ?? [] };
         }),
       );
 
@@ -100,15 +100,15 @@ function GlobalApprovalsInner() {
   const updateApprovalMutation = useMutation<
     Awaited<
       ReturnType<
-        typeof updateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatch
+        typeof updateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatch
       >
     >,
     ApiError,
-    { boardId: string; approvalId: string; status: "approved" | "rejected" }
+    { projectId: string; approvalId: string; status: "approved" | "rejected" }
   >({
-    mutationFn: ({ boardId, approvalId, status }) =>
-      updateApprovalApiV1BoardsBoardIdApprovalsApprovalIdPatch(
-        boardId,
+    mutationFn: ({ projectId, approvalId, status }) =>
+      updateApprovalApiV1ProjectsProjectIdApprovalsApprovalIdPatch(
+        projectId,
         approvalId,
         { status },
         { cache: "no-store" },
@@ -128,11 +128,11 @@ function GlobalApprovalsInner() {
   const handleDecision = useCallback(
     (approvalId: string, status: "approved" | "rejected") => {
       const approval = approvals.find((item) => item.id === approvalId);
-      const boardId = approval?.board_id;
-      if (!boardId) return;
+      const projectId = approval?.project_id;
+      if (!projectId) return;
 
       updateApprovalMutation.mutate(
-        { boardId, approvalId, status },
+        { projectId, approvalId, status },
         {
           onSuccess: (result) => {
             if (result.status !== 200) return;
@@ -170,7 +170,7 @@ function GlobalApprovalsInner() {
       <div className="p-4 md:p-6">
         <div className="h-[calc(100vh-160px)] min-h-[300px] sm:min-h-[520px]">
           <BoardApprovalsPanel
-            boardId="global"
+            projectId="global"
             approvals={approvals}
             isLoading={boardsQuery.isLoading || approvalsQuery.isLoading}
             error={combinedError}

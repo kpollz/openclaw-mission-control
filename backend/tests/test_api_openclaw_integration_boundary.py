@@ -40,7 +40,7 @@ def test_api_uses_safe_gateway_dispatch_helper() -> None:
         rel = path.relative_to(repo_root)
         for lineno, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
             line = raw_line.strip()
-            if not line.startswith("from app.services.openclaw.gateway_rpc import "):
+            if not line.startswith("from app.infrastructure.gateway.rpc_client import "):
                 continue
             if any(re.search(rf"\\b{name}\\b", line) for name in forbidden):
                 violations.append(f"{rel}:{lineno}")

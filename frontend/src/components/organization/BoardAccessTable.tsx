@@ -6,17 +6,17 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 
-import { type BoardRead } from "@/api/generated/model";
+import { type ProjectRead } from "@/api/generated/model";
 import { linkifyCell } from "@/components/tables/cell-formatters";
 import { DataTable } from "@/components/tables/DataTable";
 
 type BoardAccessState = Record<string, { read: boolean; write: boolean }>;
 
 type BoardAccessTableProps = {
-  boards: BoardRead[];
+  boards: ProjectRead[];
   access: BoardAccessState;
-  onToggleRead: (boardId: string) => void;
-  onToggleWrite: (boardId: string) => void;
+  onToggleRead: (projectId: string) => void;
+  onToggleWrite: (projectId: string) => void;
   disabled?: boolean;
 };
 
@@ -27,14 +27,14 @@ export function BoardAccessTable({
   onToggleWrite,
   disabled = false,
 }: BoardAccessTableProps) {
-  const columns = useMemo<ColumnDef<BoardRead>[]>(
+  const columns = useMemo<ColumnDef<ProjectRead>[]>(
     () => [
       {
         accessorKey: "name",
-        header: "Board",
+        header: "Project",
         cell: ({ row }) =>
           linkifyCell({
-            href: `/boards/${row.original.id}`,
+            href: `/projects/${row.original.id}`,
             label: row.original.name,
             subtitle: row.original.slug,
             subtitleClassName: "mt-1 text-xs text-slate-500",

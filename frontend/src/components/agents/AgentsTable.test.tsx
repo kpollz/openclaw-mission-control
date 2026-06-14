@@ -2,7 +2,7 @@ import type React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import type { AgentRead, BoardRead } from "@/api/generated/model";
+import type { AgentRead, ProjectRead } from "@/api/generated/model";
 import { AgentsTable } from "./AgentsTable";
 
 vi.mock("next/link", () => {
@@ -24,7 +24,7 @@ const buildAgent = (overrides: Partial<AgentRead> = {}): AgentRead => ({
   id: "agent-1",
   name: "Ava",
   gateway_id: "gateway-1",
-  board_id: "board-1",
+  project_id: "board-1",
   status: "online",
   openclaw_session_id: "session-1234",
   last_seen_at: "2026-01-01T00:00:00Z",
@@ -33,7 +33,7 @@ const buildAgent = (overrides: Partial<AgentRead> = {}): AgentRead => ({
   ...overrides,
 });
 
-const buildBoard = (overrides: Partial<BoardRead> = {}): BoardRead => ({
+const buildBoard = (overrides: Partial<ProjectRead> = {}): ProjectRead => ({
   id: "board-1",
   name: "Ops Board",
   slug: "ops-board",
@@ -59,7 +59,7 @@ describe("AgentsTable", () => {
     ).toHaveAttribute("href", "/agents/agent-1");
     expect(screen.getByRole("link", { name: "Ops Board" })).toHaveAttribute(
       "href",
-      "/boards/board-1",
+      "/projects/board-1",
     );
     expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute(
       "href",
@@ -94,7 +94,7 @@ describe("AgentsTable", () => {
         boards={[buildBoard()]}
         showActions={false}
         hiddenColumns={["status", "openclaw_session_id"]}
-        columnOrder={["updated_at", "name", "board_id", "last_seen_at"]}
+        columnOrder={["updated_at", "name", "project_id", "last_seen_at"]}
       />,
     );
 
@@ -111,7 +111,7 @@ describe("AgentsTable", () => {
     expect(headers.slice(0, 4)).toEqual([
       "Updated",
       "Agent",
-      "Board",
+      "Project",
       "Last seen",
     ]);
   });

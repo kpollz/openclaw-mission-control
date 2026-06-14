@@ -1,5 +1,5 @@
 # ruff: noqa: INP001, S101
-"""Tests for board onboarding start-session restart behavior."""
+"""Tests for project onboarding start-session restart behavior."""
 
 from __future__ import annotations
 
@@ -10,10 +10,10 @@ from uuid import uuid4
 
 import pytest
 
-from app.api import board_onboarding
-from app.core.time import utcnow
-from app.models.board_onboarding import BoardOnboardingSession
-from app.schemas.board_onboarding import BoardOnboardingStart
+import app.application.use_cases.onboarding.service as onboarding_service
+from app.application.use_cases.onboarding.service import ProjectOnboardingService
+from app.shared.time import utcnow
+from app.infrastructure.models.project_onboarding import ProjectOnboardingSession
 
 
 @dataclass
@@ -48,9 +48,9 @@ class _FakeSession:
 async def test_start_onboarding_redispatches_when_last_message_is_user(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    board_id = uuid4()
-    onboarding = BoardOnboardingSession(
-        board_id=board_id,
+    project_id = uuid4()
+    onboarding = ProjectOnboardingSession(
+        project_id=project_id,
         session_key="session-key",
         status="active",
         messages=[
@@ -62,7 +62,7 @@ async def test_start_onboarding_redispatches_when_last_message_is_user(
         ],
     )
     session: Any = _FakeSession(first_value=onboarding)
-    board = SimpleNamespace(id=board_id, name="Roadmap", description="Build v1")
+    project = SimpleNamespace(id=project_id, name="Roadmap", description="Build v1")
     captured_calls: list[dict[str, object]] = []
 
     class _FakeMessagingService:
@@ -72,14 +72,14 @@ async def test_start_onboarding_redispatches_when_last_message_is_user(
         async def dispatch_answer(
             self,
             *,
-            board: object,
+            project: object,
             onboarding: object,
             answer_text: str,
             correlation_id: str,
         ) -> None:
             captured_calls.append(
                 {
-                    "board": board,
+                    "project": project,
                     "onboarding": onboarding,
                     "answer_text": answer_text,
                     "correlation_id": correlation_id,
@@ -87,16 +87,15 @@ async def test_start_onboarding_redispatches_when_last_message_is_user(
             )
 
     monkeypatch.setattr(
-        board_onboarding,
-        "BoardOnboardingMessagingService",
+        onboarding_service,
+        "ProjectOnboardingMessagingService",
         _FakeMessagingService,
     )
 
     before = onboarding.updated_at
-    result = await board_onboarding.start_onboarding(
-        _payload=BoardOnboardingStart(),
-        board=board,
-        session=session,
+    svc = ProjectOnboardingService(session)
+    result = await svc.start_onboarding(
+        project=project,
     )
 
     assert result is onboarding
@@ -113,9 +112,9 @@ async def test_start_onboarding_redispatches_when_last_message_is_user(
 async def test_start_onboarding_does_not_redispatch_when_waiting_for_user(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    board_id = uuid4()
-    onboarding = BoardOnboardingSession(
-        board_id=board_id,
+    project_id = uuid4()
+    onboarding = ProjectOnboardingSession(
+        project_id=project_id,
         session_key="session-key",
         status="active",
         messages=[
@@ -132,7 +131,7 @@ async def test_start_onboarding_does_not_redispatch_when_waiting_for_user(
         ],
     )
     session: Any = _FakeSession(first_value=onboarding)
-    board = SimpleNamespace(id=board_id, name="Roadmap", description="Build v1")
+    project = SimpleNamespace(id=project_id, name="Roadmap", description="Build v1")
     captured_calls: list[dict[str, object]] = []
 
     class _FakeMessagingService:
@@ -142,14 +141,14 @@ async def test_start_onboarding_does_not_redispatch_when_waiting_for_user(
         async def dispatch_answer(
             self,
             *,
-            board: object,
+            project: object,
             onboarding: object,
             answer_text: str,
             correlation_id: str,
         ) -> None:
             captured_calls.append(
                 {
-                    "board": board,
+                    "project": project,
                     "onboarding": onboarding,
                     "answer_text": answer_text,
                     "correlation_id": correlation_id,
@@ -157,15 +156,14 @@ async def test_start_onboarding_does_not_redispatch_when_waiting_for_user(
             )
 
     monkeypatch.setattr(
-        board_onboarding,
-        "BoardOnboardingMessagingService",
+        onboarding_service,
+        "ProjectOnboardingMessagingService",
         _FakeMessagingService,
     )
 
-    result = await board_onboarding.start_onboarding(
-        _payload=BoardOnboardingStart(),
-        board=board,
-        session=session,
+    svc = ProjectOnboardingService(session)
+    result = await svc.start_onboarding(
+        project=project,
     )
 
     assert result is onboarding

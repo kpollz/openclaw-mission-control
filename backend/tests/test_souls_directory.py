@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from app.services.souls_directory import SoulRef, _parse_sitemap_soul_refs, search_souls
+from app.application.use_cases.souls_directory import SoulRef, _parse_sitemap_soul_refs, search_souls
 
 
 def test_parse_sitemap_extracts_soul_refs() -> None:

@@ -6,5 +6,11 @@
 - Backend: FastAPI
 - Database: Postgres
 
-> **Note**
-> Add component diagrams and key data flows (auth, task lifecycle, gateway integration) as they solidify.
+## Backend
+
+- [Backend clean architecture](./clean-architecture.md)
+
+## Follow-ups
+
+- Add component diagrams for auth, task lifecycle, gateway integration, and
+  agent provisioning after the refactor is fully stabilized.

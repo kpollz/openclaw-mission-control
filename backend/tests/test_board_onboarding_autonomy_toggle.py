@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.api.board_onboarding import _require_approval_for_done_from_draft
+from app.application.use_cases.onboarding.service import _require_approval_for_done_from_draft
 
 
 def test_require_approval_for_done_defaults_true_without_lead_agent_draft() -> None:

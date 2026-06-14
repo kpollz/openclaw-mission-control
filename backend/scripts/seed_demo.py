@@ -12,13 +12,13 @@ sys.path.insert(0, str(BACKEND_ROOT))
 
 
 async def run() -> None:
-    """Populate the local database with a demo gateway, board, user, and agent."""
-    from app.db.session import async_session_maker, init_db
-    from app.models.agents import Agent
-    from app.models.boards import Board
-    from app.models.gateways import Gateway
-    from app.models.users import User
-    from app.services.openclaw.shared import GatewayAgentIdentity
+    """Populate the local database with a demo gateway, project, user, and agent."""
+    from app.infrastructure.database.engine import async_session_maker, init_db
+    from app.infrastructure.models.agents import Agent
+    from app.infrastructure.models.projects import Project
+    from app.infrastructure.models.gateways import Gateway
+    from app.infrastructure.models.users import User
+    from app.infrastructure.gateway.shared import GatewayAgentIdentity
 
     await init_db()
     async with async_session_maker() as session:
@@ -35,17 +35,17 @@ async def run() -> None:
         await session.commit()
         await session.refresh(gateway)
 
-        board = Board(
-            name="Demo Board",
-            slug="demo-board",
+        project = Project(
+            name="Demo Project",
+            slug="demo-project",
             gateway_id=gateway.id,
-            board_type="goal",
+            project_type="goal",
             objective="Demo objective",
             success_metrics={"demo": True},
         )
-        session.add(board)
+        session.add(project)
         await session.commit()
-        await session.refresh(board)
+        await session.refresh(project)
 
         user = User(
             clerk_user_id=f"demo-{uuid4()}",
@@ -58,10 +58,10 @@ async def run() -> None:
         await session.refresh(user)
 
         lead = Agent(
-            board_id=board.id,
+            project_id=project.id,
             name="Lead Agent",
             status="online",
-            is_board_lead=True,
+            is_project_lead=True,
         )
         session.add(lead)
         await session.commit()

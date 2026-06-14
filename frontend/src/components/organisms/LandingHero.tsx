@@ -3,10 +3,8 @@
 import Link from "next/link";
 
 import {
-  SignInButton,
   SignedIn,
   SignedOut,
-  isClerkEnabled,
 } from "@/auth/clerk";
 
 const ArrowIcon = () => (
@@ -28,8 +26,6 @@ const ArrowIcon = () => (
 );
 
 export function LandingHero() {
-  const clerkEnabled = isClerkEnabled();
-
   return (
     <>
       <section className="hero">
@@ -48,45 +44,20 @@ export function LandingHero() {
 
           <div className="hero-actions">
             <SignedOut>
-              {clerkEnabled ? (
-                <>
-                  <SignInButton
-                    mode="modal"
-                    forceRedirectUrl="/boards"
-                    signUpForceRedirectUrl="/boards"
-                  >
-                    <button type="button" className="btn-large primary">
-                      Open Boards <ArrowIcon />
-                    </button>
-                  </SignInButton>
-                  <SignInButton
-                    mode="modal"
-                    forceRedirectUrl="/boards/new"
-                    signUpForceRedirectUrl="/boards/new"
-                  >
-                    <button type="button" className="btn-large secondary">
-                      Create Board
-                    </button>
-                  </SignInButton>
-                </>
-              ) : (
-                <>
-                  <Link href="/boards" className="btn-large primary">
-                    Open Boards <ArrowIcon />
-                  </Link>
-                  <Link href="/boards/new" className="btn-large secondary">
-                    Create Board
-                  </Link>
-                </>
-              )}
+              <Link href="/projects" className="btn-large primary">
+                Open Projects <ArrowIcon />
+              </Link>
+              <Link href="/projects/new" className="btn-large secondary">
+                Create Project
+              </Link>
             </SignedOut>
 
             <SignedIn>
-              <Link href="/boards" className="btn-large primary">
-                Open Boards <ArrowIcon />
+              <Link href="/projects" className="btn-large primary">
+                Open Projects <ArrowIcon />
               </Link>
-              <Link href="/boards/new" className="btn-large secondary">
-                Create Board
+              <Link href="/projects/new" className="btn-large secondary">
+                Create Project
               </Link>
             </SignedIn>
           </div>
@@ -114,12 +85,12 @@ export function LandingHero() {
           <div className="surface-subtitle">
             <h3>Ship work without losing the thread.</h3>
             <p>
-              Tasks, approvals, and agent status stay synced across the board.
+              Tasks, approvals, and agent status stay synced across projects.
             </p>
           </div>
           <div className="metrics-row">
             {[
-              { label: "Boards", value: "12" },
+              { label: "Projects", value: "12" },
               { label: "Agents", value: "08" },
               { label: "Tasks", value: "46" },
             ].map((item) => (
@@ -131,7 +102,7 @@ export function LandingHero() {
           </div>
           <div className="surface-content">
             <div className="content-section">
-              <h4>Board — In Progress</h4>
+              <h4>Project — In Progress</h4>
               {[
                 "Cut release candidate",
                 "Triage approvals backlog",
@@ -190,7 +161,7 @@ export function LandingHero() {
         <div className="features-grid">
           {[
             {
-              title: "Boards as ops maps",
+              title: "Projects as ops maps",
               description:
                 "Keep tasks, priorities, dependencies, and ownership visible at a glance.",
             },
@@ -207,7 +178,7 @@ export function LandingHero() {
             {
               title: "Audit trail built in",
               description:
-                "Every decision leaves a trail, so the board stays explainable and reviewable.",
+                "Every decision leaves a trail, so projects stay explainable and reviewable.",
             },
           ].map((feature, idx) => (
             <div key={feature.title} className="feature-card">
@@ -223,52 +194,27 @@ export function LandingHero() {
 
       <section className="cta-section">
         <div className="cta-content">
-          <h2>Start with one board. Grow into a control room.</h2>
+          <h2>Start with one project. Grow into a control room.</h2>
           <p>
-            Onboard a board, name a lead agent, and keep approvals and signals
+            Onboard a project, name a lead agent, and keep approvals and signals
             visible from day one.
           </p>
           <div className="cta-actions">
             <SignedOut>
-              {clerkEnabled ? (
-                <>
-                  <SignInButton
-                    mode="modal"
-                    forceRedirectUrl="/boards/new"
-                    signUpForceRedirectUrl="/boards/new"
-                  >
-                    <button type="button" className="btn-large white">
-                      Create Board
-                    </button>
-                  </SignInButton>
-                  <SignInButton
-                    mode="modal"
-                    forceRedirectUrl="/boards"
-                    signUpForceRedirectUrl="/boards"
-                  >
-                    <button type="button" className="btn-large outline">
-                      View Boards
-                    </button>
-                  </SignInButton>
-                </>
-              ) : (
-                <>
-                  <Link href="/boards/new" className="btn-large white">
-                    Create Board
-                  </Link>
-                  <Link href="/boards" className="btn-large outline">
-                    View Boards
-                  </Link>
-                </>
-              )}
+              <Link href="/projects/new" className="btn-large white">
+                Create Project
+              </Link>
+              <Link href="/projects" className="btn-large outline">
+                View Projects
+              </Link>
             </SignedOut>
 
             <SignedIn>
-              <Link href="/boards/new" className="btn-large white">
-                Create Board
+              <Link href="/projects/new" className="btn-large white">
+                Create Project
               </Link>
-              <Link href="/boards" className="btn-large outline">
-                View Boards
+              <Link href="/projects" className="btn-large outline">
+                View Projects
               </Link>
             </SignedIn>
           </div>

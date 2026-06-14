@@ -7,13 +7,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.core.rate_limit import (
+from app.shared.rate_limit import (
     InMemoryRateLimiter,
     RedisRateLimiter,
     create_rate_limiter,
     validate_rate_limit_redis,
 )
-from app.core.rate_limit_backend import RateLimitBackend
+from app.shared.rate_limit_backend import RateLimitBackend
 
 
 class _FakeRedis:
@@ -118,7 +118,7 @@ async def test_window_expiry_resets_limit() -> None:
 @pytest.mark.asyncio()
 async def test_sweep_removes_expired_keys() -> None:
     """Keys whose timestamps have all expired should be evicted during periodic sweep."""
-    from app.core.rate_limit import _CLEANUP_INTERVAL
+    from app.shared.rate_limit import _CLEANUP_INTERVAL
 
     limiter = InMemoryRateLimiter(max_requests=100, window_seconds=1.0)
 
@@ -155,7 +155,7 @@ def _make_redis_limiter(
     window_seconds: float = 60.0,
 ) -> RedisRateLimiter:
     """Build a RedisRateLimiter wired to a _FakeRedis instance."""
-    with patch("app.core.rate_limit._get_async_redis", return_value=fake):
+    with patch("app.shared.rate_limit._get_async_redis", return_value=fake):
         return RedisRateLimiter(
             namespace=namespace,
             max_requests=max_requests,
@@ -247,7 +247,7 @@ async def test_redis_fail_open_logs_warning() -> None:
 
     limiter._client.eval = MagicMock(side_effect=ConnectionError("Redis gone"))  # type: ignore[assignment]
 
-    with patch("app.core.rate_limit.logger") as mock_logger:
+    with patch("app.shared.rate_limit.logger") as mock_logger:
         await limiter.is_allowed("client-a")
         mock_logger.warning.assert_called_once()
 
@@ -258,16 +258,16 @@ async def test_redis_fail_open_logs_warning() -> None:
 
 
 def test_factory_returns_memory_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("app.core.config.settings.rate_limit_backend", RateLimitBackend.MEMORY)
+    monkeypatch.setattr("app.shared.config.settings.rate_limit_backend", RateLimitBackend.MEMORY)
     limiter = create_rate_limiter(namespace="test", max_requests=10, window_seconds=60.0)
     assert isinstance(limiter, InMemoryRateLimiter)
 
 
 def test_factory_returns_redis_when_configured(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("app.core.config.settings.rate_limit_backend", RateLimitBackend.REDIS)
-    monkeypatch.setattr("app.core.config.settings.rate_limit_redis_url", "redis://localhost:6379/0")
+    monkeypatch.setattr("app.shared.config.settings.rate_limit_backend", RateLimitBackend.REDIS)
+    monkeypatch.setattr("app.shared.config.settings.rate_limit_redis_url", "redis://localhost:6379/0")
     fake = _FakeRedis()
-    with patch("app.core.rate_limit._get_async_redis", return_value=fake):
+    with patch("app.shared.rate_limit._get_async_redis", return_value=fake):
         limiter = create_rate_limiter(namespace="test", max_requests=10, window_seconds=60.0)
     assert isinstance(limiter, RedisRateLimiter)
 

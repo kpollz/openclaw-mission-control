@@ -42,7 +42,7 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       DB_AUTO_MIGRATE: ${DB_AUTO_MIGRATE:-true}
       AUTH_MODE: ${AUTH_MODE}
-      LOCAL_AUTH_TOKEN: ${LOCAL_AUTH_TOKEN}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       BASE_URL: ${BASE_URL:-http://localhost:8000}
       RQ_REDIS_URL: redis://redis:6379/0
     volumes:
@@ -109,7 +109,7 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-mission_control}
       AUTH_MODE: ${AUTH_MODE}
-      LOCAL_AUTH_TOKEN: ${LOCAL_AUTH_TOKEN}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       BASE_URL: ${BASE_URL:-http://localhost:8000}
       RQ_REDIS_URL: redis://redis:6379/0
       RQ_QUEUE_NAME: ${RQ_QUEUE_NAME:-default}

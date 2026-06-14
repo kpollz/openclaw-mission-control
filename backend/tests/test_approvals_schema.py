@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.approvals import ApprovalCreate
+from app.presentation.schemas.approvals import ApprovalCreate
 
 
 def test_approval_create_requires_confidence_score() -> None:

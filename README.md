@@ -98,14 +98,14 @@ Before startup:
 ### 2. Start Mission Control
 
 ```bash
-docker compose -f compose.yml --env-file .env up -d --build
+docker compose -f docker-compose.yml --env-file .env up -d --build
 ```
 
 If you are iterating on the UI in Docker and want automatic frontend rebuilds on
 source changes, run:
 
 ```bash
-docker compose -f compose.yml --env-file .env up --build --watch
+docker compose -f docker-compose.yml --env-file .env up --build --watch
 ```
 
 Notes:
@@ -114,21 +114,21 @@ Notes:
 - You can also run watch separately after startup:
 
 ```bash
-docker compose -f compose.yml --env-file .env up -d --build
-docker compose -f compose.yml --env-file .env watch
+docker compose -f docker-compose.yml --env-file .env up -d --build
+docker compose -f docker-compose.yml --env-file .env watch
 ```
 
 After pulling new changes, rebuild and recreate all services:
 
 ```bash
-docker compose -f compose.yml --env-file .env up -d --build --force-recreate
+docker compose -f docker-compose.yml --env-file .env up -d --build --force-recreate
 ```
 
 For a fully clean rebuild (no cached build layers):
 
 ```bash
-docker compose -f compose.yml --env-file .env build --no-cache --pull
-docker compose -f compose.yml --env-file .env up -d --force-recreate
+docker compose -f docker-compose.yml --env-file .env build --no-cache --pull
+docker compose -f docker-compose.yml --env-file .env up -d --force-recreate
 ```
 
 ### 3. Open the application
@@ -139,15 +139,16 @@ docker compose -f compose.yml --env-file .env up -d --force-recreate
 ### 4. Stop the stack
 
 ```bash
-docker compose -f compose.yml --env-file .env down
+docker compose -f docker-compose.yml --env-file .env down
 ```
 
 ## Authentication
 
-Mission Control supports two authentication modes:
+Mission Control supports three authentication modes:
 
 - `local`: shared bearer token mode (default for self-hosted use)
 - `clerk`: Clerk JWT mode
+- `password`: email/password login with backend-issued JWT access and refresh tokens
 
 Environment templates:
 
@@ -158,6 +159,12 @@ Environment templates:
 ## Documentation
 
 Complete guides for deployment, production, troubleshooting, and testing are in [`/docs`](./docs/).
+
+Architecture and API references:
+
+- [Backend clean architecture](./docs/architecture/clean-architecture.md)
+- [API contract](./docs/reference/api-contract.md)
+- [Database schema map](./docs/reference/schema.md)
 
 ## Project status
 

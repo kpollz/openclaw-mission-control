@@ -14,20 +14,20 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async
 from sqlmodel import SQLModel, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import require_org_admin
-from app.api.gateways import router as gateways_router
-from app.api.skills_marketplace import (
+from app.presentation.api.deps import require_org_admin
+from app.presentation.api.gateways import router as gateways_router
+from app.presentation.api.skills_marketplace import (
     PackSkillCandidate,
     _collect_pack_skills_from_repo,
     _validate_pack_source_url,
 )
-from app.api.skills_marketplace import router as skills_marketplace_router
-from app.db.session import get_session
-from app.models.gateways import Gateway
-from app.models.organization_members import OrganizationMember
-from app.models.organizations import Organization
-from app.models.skills import GatewayInstalledSkill, MarketplaceSkill, SkillPack
-from app.services.organizations import OrganizationContext
+from app.presentation.api.skills_marketplace import router as skills_marketplace_router
+from app.infrastructure.database.engine import get_session
+from app.infrastructure.models.gateways import Gateway
+from app.infrastructure.models.organization_members import OrganizationMember
+from app.infrastructure.models.organizations import Organization
+from app.infrastructure.models.skills import GatewayInstalledSkill, MarketplaceSkill, SkillPack
+from app.application.use_cases.organizations.service import OrganizationContext
 
 
 async def _make_engine() -> AsyncEngine:
@@ -59,8 +59,8 @@ def _build_test_app(
                 organization_id=organization.id,
                 user_id=uuid4(),
                 role="owner",
-                all_boards_read=True,
-                all_boards_write=True,
+                all_projects_read=True,
+                all_projects_write=True,
             ),
         )
 
@@ -132,7 +132,7 @@ async def test_install_skill_dispatches_instruction_and_persists_installation(
             )
 
         monkeypatch.setattr(
-            "app.api.skills_marketplace.GatewayDispatchService.send_agent_message",
+            "app.application.use_cases.skills.service.GatewayDispatchService.send_agent_message",
             _fake_send_agent_message,
         )
 
@@ -327,7 +327,7 @@ async def test_sync_pack_clones_and_upserts_skills(monkeypatch: pytest.MonkeyPat
             return collected
 
         monkeypatch.setattr(
-            "app.api.skills_marketplace._collect_pack_skills",
+            "app.application.use_cases.skills.service.SkillsMarketplaceService.collect_pack_skills",
             _fake_collect_pack_skills,
         )
 
@@ -569,7 +569,7 @@ async def test_list_skill_packs_includes_skill_count() -> None:
                         "https://github.com/sickn33/antigravity-awesome-skills"
                         "/tree/main/skills/alpha"
                     ),
-                )
+                ),
             )
             session.add(
                 MarketplaceSkill(
@@ -579,14 +579,14 @@ async def test_list_skill_packs_includes_skill_count() -> None:
                         "https://github.com/sickn33/antigravity-awesome-skills"
                         "/tree/main/skills/beta"
                     ),
-                )
+                ),
             )
             session.add(
                 MarketplaceSkill(
                     organization_id=organization.id,
                     name="Other Repo Skill",
                     source_url="https://github.com/other/repo/tree/main/skills/other",
-                )
+                ),
             )
             await session.commit()
 

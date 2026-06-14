@@ -9,11 +9,11 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi import HTTPException, status
 
-from app.api import organizations
-from app.models.organization_members import OrganizationMember
-from app.models.organizations import Organization
-from app.models.users import User
-from app.services.organizations import OrganizationContext
+from app.presentation.api import organizations
+from app.infrastructure.models.organization_members import OrganizationMember
+from app.infrastructure.models.organizations import Organization
+from app.infrastructure.models.users import User
+from app.application.use_cases.organizations.service import OrganizationContext
 
 
 @dataclass
@@ -100,7 +100,7 @@ async def test_remove_org_member_deletes_member_access_and_member() -> None:
     await organizations.remove_org_member(member_id=member_id, session=session, ctx=ctx)
 
     executed_tables = [statement.table.name for statement in session.executed]
-    assert executed_tables == ["organization_board_access"]
+    assert executed_tables == ["organization_project_access"]
     assert session.deleted == [member]
     assert session.committed == 1
     assert user.active_organization_id == fallback_org_id

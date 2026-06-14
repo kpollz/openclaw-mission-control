@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.services.queue import QueuedTask, dequeue_task, enqueue_task, requeue_if_failed
+from app.infrastructure.queue.redis_queue import QueuedTask, dequeue_task, enqueue_task, requeue_if_failed
 
 
 class _FakeRedis:
@@ -33,7 +33,7 @@ def test_generic_queue_roundtrip(monkeypatch: pytest.MonkeyPatch, attempts: int)
     def _fake_redis(*, redis_url: str | None = None) -> _FakeRedis:
         return fake
 
-    monkeypatch.setattr("app.services.queue._redis_client", _fake_redis)
+    monkeypatch.setattr("app.infrastructure.queue.redis_queue._redis_client", _fake_redis)
     payload = QueuedTask(
         task_type="generic-task",
         payload={"name": "webhook.delivery"},
@@ -56,7 +56,7 @@ def test_generic_requeue_respects_retry_cap(monkeypatch: pytest.MonkeyPatch, att
     def _fake_redis(*, redis_url: str | None = None) -> _FakeRedis:
         return fake
 
-    monkeypatch.setattr("app.services.queue._redis_client", _fake_redis)
+    monkeypatch.setattr("app.infrastructure.queue.redis_queue._redis_client", _fake_redis)
     payload = QueuedTask(
         task_type="generic-task",
         payload={"attempt": attempts},
@@ -82,12 +82,12 @@ def test_dequeue_task_tolerates_legacy_payload_without_envelope(
     def _fake_redis(*, redis_url: str | None = None) -> _FakeRedis:
         return fake
 
-    monkeypatch.setattr("app.services.queue._redis_client", _fake_redis)
+    monkeypatch.setattr("app.infrastructure.queue.redis_queue._redis_client", _fake_redis)
     created_at = datetime.now(UTC)
     fake.values.append(
         json.dumps(
             {
-                "board_id": "6f3ab1ec-3ef6-4f4d-a6a7-e2d6e5d6f7a8",
+                "project_id": "6f3ab1ec-3ef6-4f4d-a6a7-e2d6e5d6f7a8",
                 "webhook_id": "e5cf5d2a-3f7d-4f3a-b2b0-b3b4f6f3a8ad",
                 "payload_id": "3f1f0b9e-4f7a-4fbe-b0f1-1a6f0f4f9e70",
                 "payload_event": "push",
@@ -102,4 +102,4 @@ def test_dequeue_task_tolerates_legacy_payload_without_envelope(
     assert task is not None
     assert task.task_type == "legacy"
     assert task.attempts == 2
-    assert task.payload["board_id"] == "6f3ab1ec-3ef6-4f4d-a6a7-e2d6e5d6f7a8"
+    assert task.payload["project_id"] == "6f3ab1ec-3ef6-4f4d-a6a7-e2d6e5d6f7a8"

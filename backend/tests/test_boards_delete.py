@@ -1,5 +1,5 @@
 # ruff: noqa: INP001, S101
-"""Regression tests for board deletion cleanup behavior."""
+"""Regression tests for project deletion cleanup behavior."""
 
 from __future__ import annotations
 
@@ -10,10 +10,10 @@ from uuid import uuid4
 
 import pytest
 
-import app.services.board_lifecycle as board_lifecycle
-from app.api import boards
-from app.models.boards import Board
-from app.services.openclaw.gateway_rpc import OpenClawGatewayError
+import app.application.use_cases.projects.delete_project as project_lifecycle
+from app.presentation.api import projects
+from app.infrastructure.models.projects import Project
+from app.infrastructure.gateway.rpc_client import OpenClawGatewayError
 
 _NO_EXEC_RESULTS_ERROR = "No more exec_results left for session.exec"
 
@@ -45,46 +45,46 @@ class _FakeSession:
 
 
 @pytest.mark.asyncio
-async def test_delete_board_cleans_org_board_access_rows() -> None:
-    """Deleting a board should clear org-board access rows before commit."""
+async def test_delete_project_cleans_org_project_access_rows() -> None:
+    """Deleting a project should clear org-project access rows before commit."""
     session: Any = _FakeSession(exec_results=[[], []])
-    board = Board(
+    project = Project(
         id=uuid4(),
         organization_id=uuid4(),
-        name="Demo Board",
-        slug="demo-board",
+        name="Demo Project",
+        slug="demo-project",
         gateway_id=None,
     )
 
-    await boards.delete_board(
+    await projects.delete_project(
         session=session,
-        board=board,
+        project=project,
     )
 
     deleted_table_names = [statement.table.name for statement in session.executed]
     assert "activity_events" in deleted_table_names
-    assert "organization_board_access" in deleted_table_names
-    assert "organization_invite_board_access" in deleted_table_names
-    assert "board_task_custom_fields" in deleted_table_names
-    assert board in session.deleted
+    assert "organization_project_access" in deleted_table_names
+    assert "organization_invite_project_access" in deleted_table_names
+    assert "project_task_custom_fields" in deleted_table_names
+    assert project in session.deleted
     assert session.committed == 1
 
 
 @pytest.mark.asyncio
-async def test_delete_board_cleans_tag_assignments_before_tasks() -> None:
-    """Deleting a board should remove task-linked rows before deleting tasks."""
+async def test_delete_project_cleans_tag_assignments_before_tasks() -> None:
+    """Deleting a project should remove task-linked rows before deleting tasks."""
     session: Any = _FakeSession(exec_results=[[], [uuid4()]])
-    board = Board(
+    project = Project(
         id=uuid4(),
         organization_id=uuid4(),
-        name="Demo Board",
-        slug="demo-board",
+        name="Demo Project",
+        slug="demo-project",
         gateway_id=None,
     )
 
-    await boards.delete_board(
+    await projects.delete_project(
         session=session,
-        board=board,
+        project=project,
     )
 
     deleted_table_names = [statement.table.name for statement in session.executed]
@@ -97,26 +97,26 @@ async def test_delete_board_cleans_tag_assignments_before_tasks() -> None:
 
 
 @pytest.mark.asyncio
-async def test_delete_board_ignores_missing_gateway_agent(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Deleting a board should continue when gateway reports agent not found."""
+async def test_delete_project_ignores_missing_gateway_agent(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Deleting a project should continue when gateway reports agent not found."""
     session: Any = _FakeSession(exec_results=[[]])
-    board = Board(
+    project = Project(
         id=uuid4(),
         organization_id=uuid4(),
-        name="Demo Board",
-        slug="demo-board",
+        name="Demo Project",
+        slug="demo-project",
         gateway_id=uuid4(),
     )
-    agent = SimpleNamespace(id=uuid4(), board_id=board.id)
+    agent = SimpleNamespace(id=uuid4(), project_id=project.id)
     gateway = SimpleNamespace(url="ws://gateway.example/ws", token=None, workspace_root="/tmp")
     called = {"delete_agent_lifecycle": 0}
 
     async def _fake_all(_session: object) -> list[object]:
         return [agent]
 
-    async def _fake_require_gateway_for_board(
+    async def _fake_require_gateway_for_project(
         _session: object,
-        _board: object,
+        _project: object,
         *,
         require_workspace_root: bool,
     ) -> object:
@@ -136,27 +136,27 @@ async def test_delete_board_ignores_missing_gateway_agent(monkeypatch: pytest.Mo
         raise OpenClawGatewayError('agent "mc-worker" not found')
 
     monkeypatch.setattr(
-        board_lifecycle.Agent,
+        project_lifecycle.Agent,
         "objects",
         SimpleNamespace(filter_by=lambda **_kwargs: SimpleNamespace(all=_fake_all)),
     )
     monkeypatch.setattr(
-        board_lifecycle,
-        "require_gateway_for_board",
-        _fake_require_gateway_for_board,
+        project_lifecycle,
+        "require_gateway_for_project",
+        _fake_require_gateway_for_project,
     )
-    monkeypatch.setattr(board_lifecycle, "gateway_client_config", lambda _gateway: None)
+    monkeypatch.setattr(project_lifecycle, "gateway_client_config", lambda _gateway: None)
     monkeypatch.setattr(
-        board_lifecycle.OpenClawGatewayProvisioner,
+        project_lifecycle.OpenClawGatewayProvisioner,
         "delete_agent_lifecycle",
         _fake_delete_agent_lifecycle,
     )
 
-    await boards.delete_board(
+    await projects.delete_project(
         session=session,
-        board=board,
+        project=project,
     )
 
     assert called["delete_agent_lifecycle"] == 1
-    assert board in session.deleted
+    assert project in session.deleted
     assert session.committed == 1

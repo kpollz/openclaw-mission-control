@@ -41,7 +41,7 @@ describe("BoardApprovalsPanel", () => {
   it("renders nested linked-approval metadata and rubric scores", () => {
     const approval = {
       id: "approval-1",
-      board_id: "board-1",
+      project_id: "board-1",
       action_type: "task.create",
       confidence: 62,
       status: "pending",
@@ -77,7 +77,7 @@ describe("BoardApprovalsPanel", () => {
     } as ApprovalRead;
 
     renderWithQueryClient(
-      <BoardApprovalsPanel boardId="board-1" approvals={[approval]} />,
+      <BoardApprovalsPanel projectId="board-1" approvals={[approval]} />,
     );
 
     expect(
@@ -93,10 +93,10 @@ describe("BoardApprovalsPanel", () => {
     expect(screen.getByText(/related tasks/i)).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Launch onboarding checklist" }),
-    ).toHaveAttribute("href", "/boards/board-1?taskId=task-1");
+    ).toHaveAttribute("href", "/projects/board-1?taskId=task-1");
     expect(
       screen.getByRole("link", { name: "Publish onboarding checklist" }),
-    ).toHaveAttribute("href", "/boards/board-1?taskId=task-2");
+    ).toHaveAttribute("href", "/projects/board-1?taskId=task-2");
     expect(screen.getByText(/rubric scores/i)).toBeInTheDocument();
     expect(screen.getByText("Clarity")).toBeInTheDocument();
   });
@@ -104,7 +104,7 @@ describe("BoardApprovalsPanel", () => {
   it("uses schema task_titles for related task links when payload titles are missing", () => {
     const approval = {
       id: "approval-2",
-      board_id: "board-1",
+      project_id: "board-1",
       action_type: "task.update",
       confidence: 88,
       status: "pending",
@@ -121,14 +121,14 @@ describe("BoardApprovalsPanel", () => {
     } as ApprovalRead;
 
     renderWithQueryClient(
-      <BoardApprovalsPanel boardId="board-1" approvals={[approval]} />,
+      <BoardApprovalsPanel projectId="board-1" approvals={[approval]} />,
     );
 
     expect(
       screen.getByRole("link", { name: "Prepare release notes" }),
-    ).toHaveAttribute("href", "/boards/board-1?taskId=task-a");
+    ).toHaveAttribute("href", "/projects/board-1?taskId=task-a");
     expect(
       screen.getByRole("link", { name: "Publish release notes" }),
-    ).toHaveAttribute("href", "/boards/board-1?taskId=task-b");
+    ).toHaveAttribute("href", "/projects/board-1?taskId=task-b");
   });
 });

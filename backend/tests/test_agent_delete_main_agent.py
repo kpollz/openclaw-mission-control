@@ -9,8 +9,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
-import app.services.openclaw.provisioning_db as agent_service
-from app.models.approvals import Approval
+import app.application.use_cases.agents.provisioning_db as agent_service
+from app.infrastructure.models.approvals import Approval
 
 
 @dataclass
@@ -33,7 +33,7 @@ class _AgentStub:
     id: UUID
     name: str
     gateway_id: UUID
-    board_id: UUID | None = None
+    project_id: UUID | None = None
     openclaw_session_id: str | None = None
 
 
@@ -48,7 +48,7 @@ class _GatewayStub:
 
 
 @pytest.mark.asyncio
-async def test_delete_gateway_main_agent_does_not_require_board_id(
+async def test_delete_gateway_main_agent_does_not_require_project_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session = _FakeSession()
@@ -59,7 +59,7 @@ async def test_delete_gateway_main_agent_does_not_require_board_id(
         id=uuid4(),
         name="Primary Gateway Agent",
         gateway_id=gateway_id,
-        board_id=None,
+        project_id=None,
         openclaw_session_id="agent:gateway-x:main",
     )
     gateway = _GatewayStub(
@@ -93,7 +93,7 @@ async def test_delete_gateway_main_agent_does_not_require_board_id(
         return None
 
     async def _should_not_be_called(*_args, **_kwargs):
-        raise AssertionError("require_board/require_gateway should not be called for main agents")
+        raise AssertionError("require_project/require_gateway should not be called for main agents")
 
     called: dict[str, int] = {"delete_lifecycle": 0}
 
@@ -117,7 +117,7 @@ async def test_delete_gateway_main_agent_does_not_require_board_id(
         return None
 
     monkeypatch.setattr(service, "require_agent_access", _no_access_check)
-    monkeypatch.setattr(service, "require_board", _should_not_be_called)
+    monkeypatch.setattr(service, "require_project", _should_not_be_called)
     monkeypatch.setattr(service, "require_gateway", _should_not_be_called)
     monkeypatch.setattr(
         agent_service.OpenClawGatewayProvisioner,

@@ -7,5 +7,5 @@
 
 export type SendGatewaySessionMessageApiV1GatewaysSessionsSessionIdMessagePostParams =
   {
-    board_id?: string | null;
+    project_id?: string | null;
   };

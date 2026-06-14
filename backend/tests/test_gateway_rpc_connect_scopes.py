@@ -4,8 +4,8 @@ import platform
 
 import pytest
 
-import app.services.openclaw.gateway_rpc as gateway_rpc
-from app.services.openclaw.gateway_rpc import (
+import app.infrastructure.gateway.rpc_client as gateway_rpc
+from app.infrastructure.gateway.rpc_client import (
     CONTROL_UI_CLIENT_ID,
     CONTROL_UI_CLIENT_MODE,
     DEFAULT_GATEWAY_CLIENT_ID,

@@ -8,11 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api import approvals as approvals_api
-from app.models.boards import Board
-from app.models.organizations import Organization
-from app.models.tasks import Task
-from app.schemas.approvals import ApprovalCreate, ApprovalUpdate
+from app.presentation.api import approvals as approvals_api
+from app.infrastructure.models.projects import Project
+from app.infrastructure.models.organizations import Organization
+from app.infrastructure.models.tasks import Task
+from app.presentation.schemas.approvals import ApprovalCreate, ApprovalUpdate
 
 
 async def _make_engine() -> AsyncEngine:
@@ -26,22 +26,22 @@ async def _make_session(engine: AsyncEngine) -> AsyncSession:
     return AsyncSession(engine, expire_on_commit=False)
 
 
-async def _seed_board_with_tasks(
+async def _seed_project_with_tasks(
     session: AsyncSession,
     *,
     task_count: int = 2,
-) -> tuple[Board, list[UUID]]:
+) -> tuple[Project, list[UUID]]:
     org_id = uuid4()
-    board = Board(id=uuid4(), organization_id=org_id, name="b", slug="b")
+    project = Project(id=uuid4(), organization_id=org_id, name="b", slug="b")
     task_ids = [uuid4() for _ in range(task_count)]
 
     session.add(Organization(id=org_id, name=f"org-{org_id}"))
-    session.add(board)
+    session.add(project)
     for task_id in task_ids:
-        session.add(Task(id=task_id, board_id=board.id, title=f"task-{task_id}"))
+        session.add(Task(id=task_id, project_id=project.id, title=f"task-{task_id}"))
     await session.commit()
 
-    return board, task_ids
+    return project, task_ids
 
 
 @pytest.mark.asyncio
@@ -49,7 +49,7 @@ async def test_create_approval_rejects_duplicate_pending_for_same_task() -> None
     engine = await _make_engine()
     try:
         async with await _make_session(engine) as session:
-            board, task_ids = await _seed_board_with_tasks(session, task_count=1)
+            project, task_ids = await _seed_project_with_tasks(session, task_count=1)
             task_id = task_ids[0]
             created = await approvals_api.create_approval(
                 payload=ApprovalCreate(
@@ -59,7 +59,7 @@ async def test_create_approval_rejects_duplicate_pending_for_same_task() -> None
                     confidence=80,
                     status="pending",
                 ),
-                board=board,
+                project=project,
                 session=session,
             )
             assert created.task_titles == [f"task-{task_id}"]
@@ -73,7 +73,7 @@ async def test_create_approval_rejects_duplicate_pending_for_same_task() -> None
                         confidence=77,
                         status="pending",
                     ),
-                    board=board,
+                    project=project,
                     session=session,
                 )
 
@@ -92,7 +92,7 @@ async def test_create_approval_rejects_pending_conflict_from_linked_task_ids() -
     engine = await _make_engine()
     try:
         async with await _make_session(engine) as session:
-            board, task_ids = await _seed_board_with_tasks(session, task_count=2)
+            project, task_ids = await _seed_project_with_tasks(session, task_count=2)
             task_a, task_b = task_ids
             created = await approvals_api.create_approval(
                 payload=ApprovalCreate(
@@ -102,7 +102,7 @@ async def test_create_approval_rejects_pending_conflict_from_linked_task_ids() -
                     confidence=85,
                     status="pending",
                 ),
-                board=board,
+                project=project,
                 session=session,
             )
             assert created.task_titles == [f"task-{task_a}", f"task-{task_b}"]
@@ -116,7 +116,7 @@ async def test_create_approval_rejects_pending_conflict_from_linked_task_ids() -
                         confidence=70,
                         status="pending",
                     ),
-                    board=board,
+                    project=project,
                     session=session,
                 )
 
@@ -135,7 +135,7 @@ async def test_update_approval_rejects_reopening_to_pending_with_existing_pendin
     engine = await _make_engine()
     try:
         async with await _make_session(engine) as session:
-            board, task_ids = await _seed_board_with_tasks(session, task_count=1)
+            project, task_ids = await _seed_project_with_tasks(session, task_count=1)
             task_id = task_ids[0]
             pending = await approvals_api.create_approval(
                 payload=ApprovalCreate(
@@ -145,7 +145,7 @@ async def test_update_approval_rejects_reopening_to_pending_with_existing_pendin
                     confidence=83,
                     status="pending",
                 ),
-                board=board,
+                project=project,
                 session=session,
             )
             resolved = await approvals_api.create_approval(
@@ -156,7 +156,7 @@ async def test_update_approval_rejects_reopening_to_pending_with_existing_pendin
                     confidence=90,
                     status="approved",
                 ),
-                board=board,
+                project=project,
                 session=session,
             )
 
@@ -164,7 +164,7 @@ async def test_update_approval_rejects_reopening_to_pending_with_existing_pendin
                 await approvals_api.update_approval(
                     approval_id=resolved.id,  # type: ignore[arg-type]
                     payload=ApprovalUpdate(status="pending"),
-                    board=board,
+                    project=project,
                     session=session,
                 )
 

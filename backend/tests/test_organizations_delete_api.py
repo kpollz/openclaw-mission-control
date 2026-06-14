@@ -10,10 +10,10 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException, status
 
-from app.api import organizations
-from app.models.organization_members import OrganizationMember
-from app.models.organizations import Organization
-from app.services.organizations import OrganizationContext
+from app.presentation.api import organizations
+from app.infrastructure.models.organization_members import OrganizationMember
+from app.infrastructure.models.organizations import Organization
+from app.application.use_cases.organizations.service import OrganizationContext
 
 
 @dataclass
@@ -58,19 +58,17 @@ async def test_delete_my_org_cleans_dependents_before_organization_delete() -> N
         "task_fingerprints",
         "approval_task_links",
         "approvals",
-        "board_memory",
-        "board_webhook_payloads",
-        "board_webhooks",
-        "board_onboarding_sessions",
-        "organization_board_access",
-        "organization_invite_board_access",
-        "organization_board_access",
-        "organization_invite_board_access",
+        "project_memory",
+        "project_webhook_payloads",
+        "project_webhooks",
+        "project_onboarding_sessions",
+        "organization_project_access",
+        "organization_invite_project_access",
+        "organization_project_access",
+        "organization_invite_project_access",
         "tasks",
         "agents",
-        "boards",
-        "board_group_memory",
-        "board_groups",
+        "projects",
         "gateways",
         "organization_invites",
         "organization_members",

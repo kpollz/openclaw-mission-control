@@ -1,7 +1,7 @@
 import { type FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
 
-import type { BoardRead } from "@/api/generated/model";
+import type { ProjectRead } from "@/api/generated/model";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -30,8 +30,8 @@ import {
 type CustomFieldFormProps = {
   mode: CustomFieldFormMode;
   initialFormState: CustomFieldFormState;
-  initialBoardIds?: string[];
-  boards: BoardRead[];
+  initialProjectIds?: string[];
+  boards: ProjectRead[];
   boardsLoading: boolean;
   boardsError: string | null;
   isSubmitting: boolean;
@@ -45,7 +45,7 @@ type CustomFieldFormProps = {
 export function CustomFieldForm({
   mode,
   initialFormState,
-  initialBoardIds = [],
+  initialProjectIds = [],
   boards,
   boardsLoading,
   boardsError,
@@ -59,8 +59,8 @@ export function CustomFieldForm({
   const [formState, setFormState] =
     useState<CustomFieldFormState>(initialFormState);
   const [boardSearch, setBoardSearch] = useState("");
-  const [selectedBoardIds, setSelectedBoardIds] = useState<Set<string>>(
-    () => new Set(initialBoardIds),
+  const [selectedProjectIds, setSelectedProjectIds] = useState<Set<string>>(
+    () => new Set(initialProjectIds),
   );
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -76,7 +76,7 @@ export function CustomFieldForm({
     const normalized = normalizeCustomFieldFormInput({
       mode,
       formState,
-      selectedBoardIds,
+      selectedProjectIds,
     });
     if (normalized.value === null) {
       setSubmitError(normalized.error);
@@ -277,23 +277,23 @@ export function CustomFieldForm({
       <div>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Board bindings
+            Project bindings
           </p>
           <span className="text-xs text-slate-500">
-            {selectedBoardIds.size} selected
+            {selectedProjectIds.size} selected
           </span>
         </div>
         <div className="mt-4 space-y-2">
           <Input
             value={boardSearch}
             onChange={(event) => setBoardSearch(event.target.value)}
-            placeholder="Search boards..."
+            placeholder="Search projects..."
             disabled={isSubmitting}
           />
           <div className="max-h-64 overflow-auto rounded-xl border border-slate-200 bg-slate-50/40">
             {boardsLoading ? (
               <div className="px-4 py-6 text-sm text-slate-500">
-                Loading boards…
+                Loading projects…
               </div>
             ) : boardsError ? (
               <div className="px-4 py-6 text-sm text-rose-700">
@@ -301,12 +301,12 @@ export function CustomFieldForm({
               </div>
             ) : filteredBoards.length === 0 ? (
               <div className="px-4 py-6 text-sm text-slate-500">
-                No boards found.
+                No projects found.
               </div>
             ) : (
               <ul className="divide-y divide-slate-200">
                 {filteredBoards.map((board) => {
-                  const checked = selectedBoardIds.has(board.id);
+                  const checked = selectedProjectIds.has(board.id);
                   return (
                     <li key={board.id} className="px-4 py-3">
                       <label className="flex cursor-pointer items-start gap-3">
@@ -315,7 +315,7 @@ export function CustomFieldForm({
                           className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
                           checked={checked}
                           onChange={() => {
-                            setSelectedBoardIds((prev) => {
+                            setSelectedProjectIds((prev) => {
                               const next = new Set(prev);
                               if (next.has(board.id)) {
                                 next.delete(board.id);
@@ -343,7 +343,7 @@ export function CustomFieldForm({
             )}
           </div>
           <p className="text-xs text-slate-500">
-            Required. The custom field appears on tasks in selected boards.
+            Required. The custom field appears on tasks in selected projects.
           </p>
         </div>
       </div>

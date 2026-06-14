@@ -6,7 +6,7 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
-from app.services.openclaw.device_identity import (
+from app.infrastructure.gateway.device_identity import (
     build_device_auth_payload,
     load_or_create_device_identity,
     sign_device_payload,

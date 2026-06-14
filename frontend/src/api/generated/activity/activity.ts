@@ -242,7 +242,7 @@ export function useListActivityApiV1ActivityGet<
 }
 
 /**
- * List task-comment feed items for accessible boards.
+ * List task-comment feed items for accessible projects.
  * @summary List Task Comment Feed
  */
 export type listTaskCommentFeedApiV1ActivityTaskCommentsGetResponse200 = {
@@ -491,7 +491,7 @@ export function useListTaskCommentFeedApiV1ActivityTaskCommentsGet<
 }
 
 /**
- * Stream task-comment events for accessible boards.
+ * Stream task-comment events for accessible projects.
  * @summary Stream Task Comment Feed
  */
 export type streamTaskCommentFeedApiV1ActivityTaskCommentsStreamGetResponse200 =

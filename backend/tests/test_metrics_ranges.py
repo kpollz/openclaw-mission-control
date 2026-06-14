@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from app.api import metrics as metrics_api
-from app.schemas.metrics import DashboardRangeKey
+from app.application.use_cases.metrics import service as metrics_service
+from app.presentation.schemas.metrics import DashboardRangeKey
 
 
 @pytest.mark.parametrize(
@@ -28,9 +28,9 @@ def test_resolve_range_maps_expected_window(
     expected_duration: timedelta,
 ) -> None:
     fixed_now = datetime(2026, 2, 12, 15, 30, 0)
-    monkeypatch.setattr(metrics_api, "utcnow", lambda: fixed_now)
+    monkeypatch.setattr(metrics_service, "utcnow", lambda: fixed_now)
 
-    spec = metrics_api._resolve_range(range_key)
+    spec = metrics_service._resolve_range(range_key)
 
     assert spec.key == range_key
     assert spec.bucket == expected_bucket
@@ -41,10 +41,10 @@ def test_resolve_range_maps_expected_window(
 
 def test_comparison_range_is_previous_window(monkeypatch: pytest.MonkeyPatch) -> None:
     fixed_now = datetime(2026, 2, 12, 15, 30, 0)
-    monkeypatch.setattr(metrics_api, "utcnow", lambda: fixed_now)
-    primary = metrics_api._resolve_range("14d")
+    monkeypatch.setattr(metrics_service, "utcnow", lambda: fixed_now)
+    primary = metrics_service._resolve_range("14d")
 
-    comparison = metrics_api._comparison_range(primary)
+    comparison = metrics_service._comparison_range(primary)
 
     assert comparison.key == primary.key
     assert comparison.bucket == primary.bucket
@@ -55,10 +55,10 @@ def test_comparison_range_is_previous_window(monkeypatch: pytest.MonkeyPatch) ->
 
 def test_week_buckets_align_to_monday(monkeypatch: pytest.MonkeyPatch) -> None:
     fixed_now = datetime(2026, 2, 12, 15, 30, 0)
-    monkeypatch.setattr(metrics_api, "utcnow", lambda: fixed_now)
-    spec = metrics_api._resolve_range("3m")
+    monkeypatch.setattr(metrics_service, "utcnow", lambda: fixed_now)
+    spec = metrics_service._resolve_range("3m")
 
-    buckets = metrics_api._build_buckets(spec)
+    buckets = metrics_service._build_buckets(spec)
 
     assert buckets
     assert all(bucket.weekday() == 0 for bucket in buckets)
@@ -70,10 +70,10 @@ def test_week_buckets_align_to_monday(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_month_buckets_align_to_first_of_month(monkeypatch: pytest.MonkeyPatch) -> None:
     fixed_now = datetime(2026, 2, 12, 15, 30, 0)
-    monkeypatch.setattr(metrics_api, "utcnow", lambda: fixed_now)
-    spec = metrics_api._resolve_range("1y")
+    monkeypatch.setattr(metrics_service, "utcnow", lambda: fixed_now)
+    spec = metrics_service._resolve_range("1y")
 
-    buckets = metrics_api._build_buckets(spec)
+    buckets = metrics_service._build_buckets(spec)
 
     assert buckets
     assert all(

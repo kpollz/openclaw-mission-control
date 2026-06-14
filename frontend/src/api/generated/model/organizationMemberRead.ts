@@ -4,21 +4,21 @@
  * Mission Control API
  * OpenAPI spec version: 0.1.0
  */
-import type { OrganizationBoardAccessRead } from "./organizationBoardAccessRead";
+import type { OrganizationProjectAccessRead } from "./organizationProjectAccessRead";
 import type { OrganizationUserRead } from "./organizationUserRead";
 
 /**
- * Organization member payload including board-level access overrides.
+ * Organization member payload including project-level access overrides.
  */
 export interface OrganizationMemberRead {
-  all_boards_read: boolean;
-  all_boards_write: boolean;
-  board_access?: OrganizationBoardAccessRead[];
-  created_at: string;
   id: string;
   organization_id: string;
+  user_id: string;
   role: string;
+  all_projects_read: boolean;
+  all_projects_write: boolean;
+  created_at: string;
   updated_at: string;
   user?: OrganizationUserRead | null;
-  user_id: string;
+  project_access?: OrganizationProjectAccessRead[];
 }

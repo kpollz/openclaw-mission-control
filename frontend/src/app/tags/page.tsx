@@ -118,7 +118,7 @@ export default function TagsPage() {
             emptyState={{
               title: "No tags yet",
               description:
-                "Create tags to classify and group tasks across your boards.",
+                "Create tags to classify and group tasks across your projects.",
               actionHref: isAdmin ? "/tags/add" : undefined,
               actionLabel: isAdmin ? "Create your first tag" : undefined,
             }}

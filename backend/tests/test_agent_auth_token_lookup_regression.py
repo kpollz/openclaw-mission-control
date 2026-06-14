@@ -18,7 +18,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.core import agent_auth
+from app.infrastructure.auth import agent_auth
 
 
 @pytest.mark.asyncio

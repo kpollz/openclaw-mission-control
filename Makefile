@@ -147,19 +147,19 @@ api-gen: frontend-tooling ## Regenerate TS API client (requires backend running 
 
 .PHONY: docker-up
 docker-up: ## Start full Docker stack with image rebuild
-	docker compose -f compose.yml --env-file .env up -d --build
+	docker compose -f docker-compose.yml --env-file .env up -d --build
 
 .PHONY: docker-watch
 docker-watch: ## Start stack in watch mode (auto rebuild frontend on UI changes)
-	docker compose -f compose.yml --env-file .env up --build --watch
+	docker compose -f docker-compose.yml --env-file .env up --build --watch
 
 .PHONY: docker-watch-only
 docker-watch-only: ## Attach file watch to an already-running stack
-	docker compose -f compose.yml --env-file .env watch
+	docker compose -f docker-compose.yml --env-file .env watch
 
 .PHONY: docker-down
 docker-down: ## Stop full Docker stack
-	docker compose -f compose.yml --env-file .env down
+	docker compose -f docker-compose.yml --env-file .env down
 
 .PHONY: rq-worker
 rq-worker: ## Run background queue worker loop

@@ -6,8 +6,8 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from app.core.auth_mode import AuthMode
-from app.core.config import Settings
+from app.shared.auth_mode import AuthMode
+from app.shared.config import Settings
 
 BASE_URL = "http://localhost:8000"
 

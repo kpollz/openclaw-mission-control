@@ -10,13 +10,13 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { ApiError } from "@/api/mutator";
 import {
-  type listBoardsApiV1BoardsGetResponse,
-  useListBoardsApiV1BoardsGet,
-} from "@/api/generated/boards/boards";
+  type listProjectsApiV1ProjectsGetResponse,
+  useListProjectsApiV1ProjectsGet,
+} from "@/api/generated/projects/projects";
 import {
   getListOrgCustomFieldsApiV1OrganizationsMeCustomFieldsGetQueryKey,
   useCreateOrgCustomFieldApiV1OrganizationsMeCustomFieldsPost,
-} from "@/api/generated/org-custom-fields/org-custom-fields";
+} from "@/api/generated/custom-fields/custom-fields";
 import { CustomFieldForm } from "@/components/custom-fields/CustomFieldForm";
 import { DEFAULT_CUSTOM_FIELD_FORM_STATE } from "@/components/custom-fields/custom-field-form-types";
 import {
@@ -32,8 +32,8 @@ export default function NewCustomFieldPage() {
   const { isAdmin } = useOrganizationMembership(isSignedIn);
   const queryClient = useQueryClient();
 
-  const boardsQuery = useListBoardsApiV1BoardsGet<
-    listBoardsApiV1BoardsGetResponse,
+  const boardsQuery = useListProjectsApiV1ProjectsGet<
+    listProjectsApiV1ProjectsGetResponse,
     ApiError
   >(
     { limit: 200 },

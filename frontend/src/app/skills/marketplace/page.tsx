@@ -21,7 +21,7 @@ import {
   useInstallMarketplaceSkillApiV1SkillsMarketplaceSkillIdInstallPost,
   useListMarketplaceSkillsApiV1SkillsMarketplaceGet,
   useUninstallMarketplaceSkillApiV1SkillsMarketplaceSkillIdUninstallPost,
-} from "@/api/generated/skills-marketplace/skills-marketplace";
+} from "@/api/generated/skills/skills";
 import {
   type listSkillPacksApiV1SkillsPacksGetResponse,
   useListSkillPacksApiV1SkillsPacksGet,

@@ -1,4 +1,4 @@
-from app.core.version import APP_NAME, APP_VERSION
+from app.shared.version import APP_NAME, APP_VERSION
 
 
 def test_app_name_constant() -> None:
