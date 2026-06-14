@@ -887,6 +887,7 @@ export default function BoardDetailPage() {
   const [chatMessages, setChatMessages] = useState<BoardChatMessage[]>([]);
   const [isChatSending, setIsChatSending] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [lastSeenChatMs, setLastSeenChatMs] = useState<number | null>(null);
   const chatMessagesRef = useRef<BoardChatMessage[]>([]);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const [isAgentsControlDialogOpen, setIsAgentsControlDialogOpen] =
@@ -1138,6 +1139,7 @@ export default function BoardDetailPage() {
 
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [editOutput, setEditOutput] = useState("");
   const [editStatus, setEditStatus] = useState<TaskStatus>("inbox");
   const [editPriority, setEditPriority] = useState("medium");
   const [editDueDate, setEditDueDate] = useState("");
@@ -1326,6 +1328,39 @@ export default function BoardDetailPage() {
     if (!latest) return undefined;
     return new Date(latest).toISOString();
   };
+
+  // Unread board-chat tracking: surface a red dot on the Board chat button when
+  // messages have arrived that the user has not opened the panel to see. The
+  // "seen" cursor is persisted per project so it survives reloads.
+  const latestChatMs = useMemo(() => {
+    let max: number | null = null;
+    for (const message of chatMessages) {
+      const ts = apiDatetimeToMs(message.created_at);
+      if (ts !== null) max = max === null ? ts : Math.max(max, ts);
+    }
+    return max;
+  }, [chatMessages]);
+
+  const hasUnreadChat =
+    latestChatMs !== null &&
+    (lastSeenChatMs === null || latestChatMs > lastSeenChatMs);
+
+  useEffect(() => {
+    if (!projectId || typeof window === "undefined") return;
+    const raw = window.localStorage.getItem(`board-chat-seen:${projectId}`);
+    setLastSeenChatMs(raw ? Number(raw) || null : null);
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!isChatOpen || latestChatMs === null) return;
+    setLastSeenChatMs(latestChatMs);
+    if (projectId && typeof window !== "undefined") {
+      window.localStorage.setItem(
+        `board-chat-seen:${projectId}`,
+        String(latestChatMs),
+      );
+    }
+  }, [isChatOpen, latestChatMs, projectId]);
 
   const lastAgentControlCommand = useMemo(() => {
     for (let i = chatMessages.length - 1; i >= 0; i -= 1) {
@@ -1615,6 +1650,7 @@ export default function BoardDetailPage() {
     if (!selectedTask) {
       setEditTitle("");
       setEditDescription("");
+      setEditOutput("");
       setEditStatus("inbox");
       setEditPriority("medium");
       setEditDueDate("");
@@ -1629,6 +1665,7 @@ export default function BoardDetailPage() {
     }
     setEditTitle(selectedTask.title);
     setEditDescription(selectedTask.description ?? "");
+    setEditOutput(selectedTask.output ?? "");
     setEditStatus(selectedTask.status);
     setEditPriority(selectedTask.priority);
     setEditDueDate(toLocalDateInput(selectedTask.due_at));
@@ -2644,6 +2681,7 @@ export default function BoardDetailPage() {
       const updatePayload: BoardTaskUpdatePayload = {
         title: trimmedTitle,
         description: editDescription.trim() || null,
+        output: editOutput.trim() || null,
         status: editStatus,
         priority: editPriority,
         assigned_agent_id: editAssigneeId || null,
@@ -2722,6 +2760,7 @@ export default function BoardDetailPage() {
     if (!selectedTask) return;
     setEditTitle(selectedTask.title);
     setEditDescription(selectedTask.description ?? "");
+    setEditOutput(selectedTask.output ?? "");
     setEditStatus(selectedTask.status);
     setEditPriority(selectedTask.priority);
     setEditDueDate(toLocalDateInput(selectedTask.due_at));
@@ -3171,11 +3210,21 @@ export default function BoardDetailPage() {
                   <Button
                     variant="outline"
                     onClick={openBoardChat}
-                    className="h-9 w-9 p-0"
-                    aria-label="Board chat"
-                    title="Board chat"
+                    className="relative h-9 w-9 p-0"
+                    aria-label={
+                      hasUnreadChat ? "Board chat (unread messages)" : "Board chat"
+                    }
+                    title={
+                      hasUnreadChat ? "Board chat — unread messages" : "Board chat"
+                    }
                   >
                     <MessageSquare className="h-4 w-4" />
+                    {hasUnreadChat ? (
+                      <span
+                        className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"
+                        aria-hidden="true"
+                      />
+                    ) : null}
                   </Button>
                   <Button
                     variant="outline"
@@ -3911,6 +3960,28 @@ export default function BoardDetailPage() {
                 disabled={!selectedTask || isSavingTask || !canWrite}
               />
             </div>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Output (deliverable)
+              </label>
+              <Textarea
+                value={editOutput}
+                onChange={(event) => setEditOutput(event.target.value)}
+                placeholder="The deliverable the reviewer reads — summary, links, paths. Required before review/done."
+                className="min-h-[120px]"
+                disabled={!selectedTask || isSavingTask || !canWrite}
+              />
+            </div>
+            {selectedTask?.status_reason ? (
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Status reason
+                </label>
+                <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                  {selectedTask.status_reason}
+                </p>
+              </div>
+            ) : null}
             <div className="space-y-2">
               <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Custom fields
