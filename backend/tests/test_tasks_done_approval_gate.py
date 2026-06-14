@@ -323,6 +323,54 @@ async def test_update_task_rejects_review_with_empty_output() -> None:
 
 
 @pytest.mark.asyncio
+async def test_update_task_rejects_review_when_output_is_local_workspace_path() -> None:
+    # Regression: agents must inline the deliverable, not point at a local workspace file
+    # the reviewer and downstream agents cannot see.
+    engine = await _make_engine()
+    try:
+        async with await _make_session(engine) as session:
+            _project, task, agent = await _seed_project_task_and_agent(
+                session,
+                task_status="in_progress",
+                require_approval_for_done=False,
+                output=None,
+            )
+
+            with pytest.raises(HTTPException) as exc:
+                await tasks_api.update_task(
+                    payload=TaskUpdate(
+                        status="review",
+                        output=(
+                            "Requirements doc complete. File location: "
+                            "~/.openclaw/workspace-mc-abc123/requirements.md"
+                        ),
+                    ),
+                    task=task,
+                    session=session,
+                    actor=ActorContext(actor_type="agent", agent=agent),
+                )
+
+            assert exc.value.status_code == 409
+            detail = exc.value.detail
+            assert isinstance(detail, dict)
+            assert detail["code"] == "task_output_local_path"
+
+            # Inlining the real content succeeds.
+            updated = await tasks_api.update_task(
+                payload=TaskUpdate(
+                    status="review",
+                    output="# Requirements\n- FR-1: add\n- FR-2: subtract\n...",
+                ),
+                task=task,
+                session=session,
+                actor=ActorContext(actor_type="agent", agent=agent),
+            )
+            assert updated.status == "review"
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_update_task_rejects_done_from_in_progress_when_review_toggle_enabled() -> None:
     engine = await _make_engine()
     try:

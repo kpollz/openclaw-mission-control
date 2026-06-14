@@ -12,7 +12,7 @@ import { DashboardPageLayout } from "@/components/templates/DashboardPageLayout"
 import { Button } from "@/components/ui/button";
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog";
 
-import { ApiError } from "@/api/mutator";
+import { ApiError, customFetch } from "@/api/mutator";
 import {
   type listProjectsApiV1ProjectsGetResponse,
   useListProjectsApiV1ProjectsGet,
@@ -52,6 +52,9 @@ export default function GatewayDetailPage() {
 
   const { isAdmin } = useOrganizationMembership(isSignedIn);
   const [deleteTarget, setDeleteTarget] = useState<AgentRead | null>(null);
+  const [isProvisioning, setIsProvisioning] = useState(false);
+  const [provisionError, setProvisionError] = useState<string | null>(null);
+  const [provisionNotice, setProvisionNotice] = useState<string | null>(null);
   const agentsKey = getListAgentsApiV1AgentsGetQueryKey(
     gatewayId ? { gateway_id: gatewayId } : undefined,
   );
@@ -144,6 +147,39 @@ export default function GatewayDetailPage() {
         : [],
     [boardsQuery.data],
   );
+
+  // The gateway (main) agent is the one with no project scope.
+  const mainAgent = useMemo(
+    () => agents.find((agent) => !agent.project_id) ?? null,
+    [agents],
+  );
+
+  const handleCreateGatewayAgent = async () => {
+    if (!gatewayId) return;
+    setProvisionError(null);
+    setProvisionNotice(null);
+    setIsProvisioning(true);
+    try {
+      const res = await customFetch<{
+        data: { created: boolean; agent_name: string };
+        status: number;
+      }>(`/api/v1/gateways/${gatewayId}/agent`, { method: "POST" });
+      setProvisionNotice(
+        res.data?.created
+          ? `Gateway agent "${res.data.agent_name}" created.`
+          : `Gateway agent "${res.data.agent_name}" already exists.`,
+      );
+      await queryClient.invalidateQueries({ queryKey: agentsKey });
+    } catch (err) {
+      setProvisionError(
+        err instanceof ApiError
+          ? err.message
+          : "Failed to create the gateway agent.",
+      );
+    } finally {
+      setIsProvisioning(false);
+    }
+  };
 
   const status =
     statusQuery.data?.status === 200 ? statusQuery.data.data : null;
@@ -285,14 +321,37 @@ export default function GatewayDetailPage() {
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Agents
                 </p>
-                {agentsQuery.isLoading ? (
-                  <span className="text-xs text-slate-500">Loading…</span>
-                ) : (
-                  <span className="text-xs text-slate-500">
-                    {agents.length} total
-                  </span>
-                )}
+                <div className="flex items-center gap-3">
+                  {agentsQuery.isLoading ? (
+                    <span className="text-xs text-slate-500">Loading…</span>
+                  ) : (
+                    <span className="text-xs text-slate-500">
+                      {agents.length} total
+                    </span>
+                  )}
+                  {isAdmin && !agentsQuery.isLoading ? (
+                    mainAgent ? (
+                      <span className="text-xs font-medium text-emerald-600">
+                        Gateway agent: {mainAgent.name}
+                      </span>
+                    ) : (
+                      <Button
+                        size="sm"
+                        onClick={handleCreateGatewayAgent}
+                        disabled={isProvisioning}
+                      >
+                        {isProvisioning ? "Creating…" : "Create gateway agent"}
+                      </Button>
+                    )
+                  ) : null}
+                </div>
               </div>
+              {provisionError ? (
+                <p className="mt-2 text-xs text-rose-600">{provisionError}</p>
+              ) : null}
+              {provisionNotice ? (
+                <p className="mt-2 text-xs text-emerald-600">{provisionNotice}</p>
+              ) : null}
               <div className="mt-4">
                 <AgentsTable
                   agents={agents}

@@ -103,7 +103,9 @@ Before execution:
 1) Rebuild operating context from `AGENTS.md` and `MEMORY.md`.
 2) Enforce project-rule gates for status transitions and completion.
 3) Ensure approvals are resolved before external side effects and closure.
-4) Keep assignment/staffing healthy; create/retire specialists when needed.
+4) Keep assignment/staffing healthy; create/retire specialists when needed. Create workers
+   ONLY via the Mission Control API (`POST /api/v1/agent/agents`, see the skill) — NEVER
+   `sessions_spawn` or native OpenClaw sub-agents (invisible to MC, cannot receive tasks).
 5) Unblock actively with concrete decisions and resequencing.
 6) Keep delivery status in `MEMORY.md` current (state, next step, evidence).
 
@@ -123,10 +125,12 @@ Before execution:
    `status=in_progress` (with a short `status_reason`) BEFORE running any work.
 4) Refresh task context and plan for the active task.
 5) Execute and post only high-signal task comment updates.
-6) **Fill the `output` field with the real deliverable**, then move to `review`. Local
-   files on disk are temporary and invisible in Mission Control — a task cannot move to
-   `review` or `done` while `output` is empty (the API returns 409). Put the actual
-   result/summary/links in `output`, not just "done, see local file".
+6) **Put the REAL DELIVERABLE CONTENT in the `output` field** (the document text, code, or
+   analysis itself), then move to `review`. The reviewer and the next agent read `output`;
+   they CANNOT see your local files. Do not write a path like "see ~/.openclaw/workspace-.../
+   file.md" — an empty `output` returns 409 `task_output_required`, and an `output` pointing
+   to a local `.openclaw/workspace-...` path returns 409 `task_output_local_path`. To build
+   on a previous task, GET its `output`.
 7) Do not move a task to `done` unless the task `output` field contains the final
    deliverable/evidence and all project gates are satisfied.
 
@@ -161,9 +165,10 @@ If blocked:
 - Work artifact exists.
 - Evidence is captured in task comments.
 - Required gates/rules are satisfied before closure.
-- The task `output` field is populated with the real deliverable BEFORE `review` or `done`.
-  Local files are temporary and not visible in Mission Control; the human only ever sees
-  `output`. A task with an empty `output` cannot move to `review` or `done`.
+- The task `output` field contains the real deliverable CONTENT (not a path/filename) BEFORE
+  `review` or `done`. Local files are invisible in Mission Control; the human, the reviewer,
+  and the next agent only ever see `output`. A task cannot move to `review`/`done` with an
+  empty `output` or with an `output` that points to a local `.openclaw/workspace-...` path.
 
 ## When to Return `HEARTBEAT_OK`
 Return `HEARTBEAT_OK` only when:

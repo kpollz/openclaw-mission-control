@@ -56,7 +56,12 @@ class GatewayService:
         payload: "GatewayCreate",
         auth: "AuthContext",
     ) -> Gateway:
-        """Create a gateway and provision or refresh its main agent."""
+        """Create a gateway: persist its settings and verify the connection.
+
+        This does NOT provision the gateway (main) agent — that is an explicit action
+        via ``provision_gateway_agent`` so the first connection (which may require device
+        pairing) can complete before any agent is created.
+        """
         await self._admin.assert_gateway_runtime_compatible(
             url=payload.url,
             token=payload.token,
@@ -66,9 +71,7 @@ class GatewayService:
         data = payload.model_dump()
         data["id"] = uuid4()
         data["organization_id"] = organization_id
-        gateway = await crud.create(self._session, Gateway, **data)
-        await self._admin.ensure_main_agent(gateway, auth, action="provision")
-        return gateway
+        return await crud.create(self._session, Gateway, **data)
 
     async def get_gateway(
         self,
@@ -90,7 +93,12 @@ class GatewayService:
         payload: "GatewayUpdate",
         auth: "AuthContext",
     ) -> Gateway:
-        """Patch a gateway and refresh the main-agent provisioning state."""
+        """Patch a gateway: persist changes and verify the connection.
+
+        Like ``create_gateway`` this no longer provisions the main agent. Saving gateway
+        settings is purely "store + connection check"; the gateway agent is created/refreshed
+        explicitly via ``provision_gateway_agent``.
+        """
         gateway = await self.get_gateway(
             organization_id=organization_id,
             gateway_id=gateway_id,
@@ -114,8 +122,33 @@ class GatewayService:
                     ),
                 )
         await crud.patch(self._session, gateway, updates)
-        await self._admin.ensure_main_agent(gateway, auth, action="update")
         return gateway
+
+    async def provision_gateway_agent(
+        self,
+        *,
+        organization_id: UUID,
+        gateway_id: UUID,
+        auth: "AuthContext",
+    ) -> tuple[Agent, bool]:
+        """Explicitly create the gateway (main) agent for a gateway.
+
+        Idempotent: if a fully provisioned main agent already exists for this gateway,
+        returns it unchanged (``created=False``) instead of creating a second one. If no
+        agent exists — or a prior attempt left an unprovisioned record (e.g. the first
+        connection needed device pairing) — it provisions and returns ``created=True``.
+        """
+        gateway = await self.get_gateway(
+            organization_id=organization_id,
+            gateway_id=gateway_id,
+        )
+        existing = await self._admin.find_main_agent(gateway)
+        if existing is not None and existing.agent_token_hash:
+            has_entry = await self._admin.gateway_has_main_agent_entry(gateway)
+            if has_entry:
+                return existing, False
+        agent = await self._admin.ensure_main_agent(gateway, auth, action="provision")
+        return agent, True
 
     async def sync_gateway_templates(
         self,

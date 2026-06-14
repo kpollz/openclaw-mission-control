@@ -177,6 +177,9 @@ You are a worker agent for this project. You own execution quality.
 - Assign the best-fit agent for each task; create specialists if needed.
 - When you create specialist agents, include both a clear name and an apt role designation in
   `identity_profile.role` (for example: `SEO Analyst`, `DevOps Engineer`, `SDE 1`).
+- Create workers ONLY through the Mission Control API (`POST /api/v1/agent/agents`, see the
+  skill). NEVER use `sessions_spawn` or any native OpenClaw sub-agent/session tool — those
+  are invisible to Mission Control, cannot receive tasks, and never appear on the board.
 - Retire specialists when no longer useful.
 - Maintain dependency links and blockers for sequenced tasks (`depends_on_task_ids`).
 - Add and maintain relevant tags (`tag_ids`) during planning and execution.

@@ -234,6 +234,33 @@ class TaskService:
             output = raw if isinstance(raw, str) else None
         return (output or "").strip()
 
+    # Marker for an isolated per-agent OpenClaw workspace path. Such a path in the
+    # Output field means the agent left the deliverable as a local file (invisible to
+    # Mission Control, the reviewer, and downstream agents) instead of inlining it.
+    _LOCAL_WORKSPACE_MARKER = ".openclaw/workspace-"
+
+    @classmethod
+    def _output_references_local_workspace(cls, output_value: str) -> bool:
+        return cls._LOCAL_WORKSPACE_MARKER in output_value
+
+    @staticmethod
+    def _task_output_local_path_error(target_status: str) -> Exception:
+        from fastapi import HTTPException, status
+        return HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": (
+                    f"Task cannot move to {target_status}: the Output field points to a "
+                    "local agent workspace path (.openclaw/workspace-...). Local files are "
+                    "invisible to Mission Control, the reviewer, and other agents. Put the "
+                    "actual deliverable CONTENT in `output` (the document text, code, or "
+                    "analysis itself), not a file path."
+                ),
+                "code": "task_output_local_path",
+                "blocked_by_task_ids": [],
+            },
+        )
+
     def _require_task_output_for_review_or_done(
         self,
         *,
@@ -250,9 +277,11 @@ class TaskService:
             return
         if previous_status is not None and previous_status == target_status:
             return
-        if self._task_output_value(task, updates):
-            return
-        raise self._task_output_required_error(target_status)
+        output_value = self._task_output_value(task, updates)
+        if not output_value:
+            raise self._task_output_required_error(target_status)
+        if self._output_references_local_workspace(output_value):
+            raise self._task_output_local_path_error(target_status)
 
     @staticmethod
     def _pending_approval_blocks_status_change_error() -> Exception:
@@ -664,10 +693,15 @@ class TaskService:
             + "\n\nTake action:\n"
             "1) Set this task to `in_progress` BEFORE doing any work "
             "(PATCH status=in_progress with a short status_reason).\n"
-            "2) Do the work; post progress as task comments.\n"
-            "3) When done, put the real deliverable in the task `output` field, then move "
-            "to `review`. Local files are temporary and invisible in Mission Control — a "
-            "task cannot move to review/done with an empty `output` (API returns 409)."
+            "2) For prior work this task builds on, GET the dependency tasks and read their "
+            "`output` field — that is where previous deliverables live (NOT another agent's "
+            "local files, which you cannot see).\n"
+            "3) Do the work; post progress as task comments.\n"
+            "4) When done, put the REAL DELIVERABLE CONTENT in the task `output` field (the "
+            "document text, code, or analysis itself — not a path/filename), then move to "
+            "`review`. Local files are invisible to Mission Control, the reviewer, and other "
+            "agents; a task cannot move to review/done with an empty `output`, nor with an "
+            "`output` that points to a local `.openclaw/workspace-...` path (API returns 409)."
         )
 
     @staticmethod

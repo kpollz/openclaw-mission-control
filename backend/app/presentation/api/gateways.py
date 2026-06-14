@@ -15,6 +15,7 @@ from app.infrastructure.models.gateways import Gateway
 from app.presentation.api.deps import require_org_admin
 from app.presentation.schemas.common import OkResponse
 from app.presentation.schemas.gateways import (
+    GatewayAgentProvisionResult,
     GatewayCreate,
     GatewayRead,
     GatewayTemplatesSyncResult,
@@ -112,12 +113,37 @@ async def update_gateway(
     auth: AuthContext = AUTH_DEP,
     ctx: OrganizationContext = ORG_ADMIN_DEP,
 ) -> Gateway:
-    """Patch a gateway and refresh the main-agent provisioning state."""
+    """Patch a gateway (persist settings + connection check; does not create the agent)."""
     return await GatewayService(session).update_gateway(
         gateway_id=gateway_id,
         organization_id=ctx.organization.id,
         payload=payload,
         auth=auth,
+    )
+
+
+@router.post("/{gateway_id}/agent", response_model=GatewayAgentProvisionResult)
+async def provision_gateway_agent(
+    gateway_id: UUID,
+    session: AsyncSession = SESSION_DEP,
+    auth: AuthContext = AUTH_DEP,
+    ctx: OrganizationContext = ORG_ADMIN_DEP,
+) -> GatewayAgentProvisionResult:
+    """Explicitly create this gateway's main agent.
+
+    Idempotent: if a fully provisioned gateway agent already exists, returns it with
+    ``created=False`` rather than creating a second one.
+    """
+    agent, created = await GatewayService(session).provision_gateway_agent(
+        gateway_id=gateway_id,
+        organization_id=ctx.organization.id,
+        auth=auth,
+    )
+    return GatewayAgentProvisionResult(
+        gateway_id=gateway_id,
+        agent_id=agent.id,
+        agent_name=agent.name,
+        created=created,
     )
 
 

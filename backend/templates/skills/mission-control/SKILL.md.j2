@@ -206,6 +206,29 @@ Do NOT invent `tag_ids` or `custom_field_values`:
 
 To assign the task, set `assigned_agent_id` to a real agent UUID. To convey role/priority
 context when no custom field exists, put it in the `description` instead of inventing fields.
+
+## Creating worker agents (lead)
+
+Create every worker/specialist through Mission Control so it appears on the board and can
+receive tasks. The endpoint is `POST /api/v1/agent/agents` (the new agent is forced onto
+your project automatically — do not send `project_id`):
+
+```bash
+cat > /tmp/agent.json <<'JSON'
+{"name":"Bao","identity_profile":{"role":"BA","communication_style":"concise"}}
+JSON
+curl -sS -X POST "BASE_URL_VALUE/api/v1/agent/agents" \
+  -H "X-Agent-Token: TOKEN_VALUE" -H "Content-Type: application/json" \
+  --data @/tmp/agent.json -w '\nHTTP %{http_code}\n'
+```
+
+**NEVER use `sessions_spawn`, `sessions.create`, or any native OpenClaw sub-agent/session
+tool to create workers.** Those sub-agents are invisible to Mission Control — they have no
+agent record, cannot be assigned tasks, and do not show on the board. The ONLY correct way
+to add a worker is the endpoint above.
+
+If `POST /api/v1/agent/agents` returns **404**, you used the wrong path/method — re-check it
+against `references/api_schema.md` and retry. Do NOT fall back to spawning a native sub-agent.
 {% endif %}
 
 ## Task workflow & system rules
@@ -214,9 +237,13 @@ Tasks move through exactly four statuses: **`inbox` → `in_progress` → `revie
 
 1. **Claim before working.** If a task is `inbox` and you are about to work it, PATCH
    `status=in_progress` (with a short `status_reason`) FIRST.
-2. **`output` is mandatory for `review` and `done`.** It is the ONLY deliverable a human
-   reads in Mission Control. Local files are temporary and invisible. A PATCH to `review`
-   or `done` with empty `output` is rejected with **409 `task_output_required`**.
+2. **`output` must hold the REAL DELIVERABLE CONTENT for `review`/`done`.** It is the ONLY
+   thing the human, the reviewer, and the next agent can read — they CANNOT see your local
+   files. Put the actual content in `output`: the document text, the code, the analysis
+   itself. Do NOT write "see ~/.openclaw/workspace-.../file.md" or any local path — an empty
+   `output` returns **409 `task_output_required`**, and an `output` that points to a local
+   `.openclaw/workspace-...` path returns **409 `task_output_local_path`**. To build on a
+   previous task, GET its `output` (that is where the prior deliverable lives).
 3. **`review` means "waiting for the lead".** Do not mark your own task `done` unless you
    are the lead and all gates pass.
 4. **Gates before `done`:** linked approval approved, came from `review`, blocking

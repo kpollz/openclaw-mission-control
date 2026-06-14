@@ -70,6 +70,16 @@ class GatewayRead(GatewayBase):
     updated_at: datetime
 
 
+class GatewayAgentProvisionResult(SQLModel):
+    """Result of explicitly provisioning a gateway's main agent."""
+
+    gateway_id: UUID
+    agent_id: UUID
+    agent_name: str
+    # False when a fully provisioned main agent already existed (idempotent no-op).
+    created: bool
+
+
 class GatewayTemplatesSyncError(SQLModel):
     """Per-agent error entry from a gateway template sync operation."""
 
