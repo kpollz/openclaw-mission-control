@@ -49,33 +49,6 @@ Core operational areas:
 
 ## Get started in minutes
 
-### Option A: One-command production-style bootstrap
-
-If you haven't cloned the repo yet, you can run the installer in one line:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/abhi1693/openclaw-mission-control/master/install.sh | bash
-```
-
-This clones the repository into `./openclaw-mission-control` if no local checkout is found in your current directory.
-
-If you already cloned the repo:
-
-```bash
-./install.sh
-```
-
-The installer is interactive and will:
-
-- Ask for deployment mode (`docker` or `local`).
-- Install missing system dependencies when possible.
-- Generate and configure environment files.
-- Bootstrap and start the selected deployment mode.
-
-Installer support matrix: [`docs/installer-support.md`](./docs/installer-support.md)
-
-### Option B: Manual setup
-
 ### Prerequisites
 
 - **Supported platforms**: Linux and macOS. On macOS, Docker mode requires [Docker Desktop](https://www.docker.com/products/docker-desktop/); local mode requires [Homebrew](https://brew.sh) and Node.js 22+.
@@ -90,7 +63,8 @@ cp .env.example .env
 
 Before startup:
 
-- Set `LOCAL_AUTH_TOKEN` to a non-placeholder value (minimum 50 characters) when `AUTH_MODE=local`.
+- Keep `AUTH_MODE=password` (default) to use the web sign-in UI, and set `JWT_SECRET_KEY` to a long random value (e.g. `openssl rand -hex 32`). `AUTH_MODE=local` is API/bearer-token only and has no web login screen.
+- Set `LOCAL_AUTH_TOKEN` to a non-placeholder value (minimum 50 characters) only if you switch to `AUTH_MODE=local`.
 - Ensure `BASE_URL` matches the public backend origin if you are not using `http://localhost:8000`.
 - `NEXT_PUBLIC_API_URL=auto` (default) resolves to `http(s)://<current-host>:8000`.
   - Set an explicit URL when your API is behind a reverse proxy or non-default port.
@@ -144,11 +118,11 @@ docker compose -f docker-compose.yml --env-file .env down
 
 ## Authentication
 
-Mission Control supports three authentication modes:
+The backend supports three authentication modes:
 
-- `local`: shared bearer token mode (default for self-hosted use)
+- `password`: email/password login with backend-issued JWT access and refresh tokens. **This is the only mode with a web sign-in UI** and is the default.
+- `local`: shared bearer token mode for API/automation clients only (no web login screen).
 - `clerk`: Clerk JWT mode
-- `password`: email/password login with backend-issued JWT access and refresh tokens
 
 Environment templates:
 

@@ -4,8 +4,6 @@ import { useEffect, useState } from "react";
 import { Lock, Mail, User } from "lucide-react";
 
 import {
-  clearPasswordTokens,
-  isPasswordAuthMode,
   setPasswordTokens,
   setPasswordUser,
   scheduleTokenRefresh,
@@ -122,9 +120,10 @@ export function PasswordAuthLogin({
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Determine register vs login based on setup-status
+  // Determine register vs login based on setup-status.
+  // This effect must always resolve `mode` out of "loading" on every path,
+  // otherwise the sign-in screen is stuck on the loading spinner forever.
   useEffect(() => {
-    if (!isPasswordAuthMode()) return;
     let cancelled = false;
 
     (async () => {

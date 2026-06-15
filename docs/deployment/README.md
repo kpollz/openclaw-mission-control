@@ -118,7 +118,7 @@ This section is intentionally minimal until we standardize a recommended proxy (
 
 ## Run at boot (local install)
 
-If you installed Mission Control **without Docker** (e.g. using `install.sh` with "local" mode, or inside a VM where Docker is not used), the installer does not configure run-at-boot. You can start the stack after each reboot manually, or configure the OS to start it for you.
+If you run Mission Control **without Docker** (e.g. inside a VM where Docker is not used), nothing configures run-at-boot for you. You can start the stack after each reboot manually, or configure the OS to start it for you.
 
 ### Linux (systemd)
 
