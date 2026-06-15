@@ -14,6 +14,7 @@ import { SignInButton, SignedIn, SignedOut, useAuth } from "@/auth/clerk";
 import {
   Activity,
   ArrowUpRight,
+  ChevronDown,
   MessageSquare,
   Pause,
   Plus,
@@ -504,6 +505,27 @@ const normalizeTagColor = (value?: string | null) => {
   if (!/^[0-9a-f]{6}$/.test(cleaned)) return "9e9e9e";
   return cleaned;
 };
+
+// Accent style for task-detail field labels so they stand out from the values.
+const FIELD_LABEL =
+  "text-xs font-semibold uppercase tracking-wider text-indigo-600";
+
+const STATUS_BADGE: Record<string, string> = {
+  inbox: "border-slate-200 bg-slate-100 text-slate-700",
+  in_progress: "border-blue-200 bg-blue-50 text-blue-700",
+  review: "border-amber-200 bg-amber-50 text-amber-700",
+  done: "border-emerald-200 bg-emerald-50 text-emerald-700",
+};
+
+const PRIORITY_BADGE: Record<string, string> = {
+  high: "border-rose-200 bg-rose-50 text-rose-700",
+  medium: "border-amber-200 bg-amber-50 text-amber-700",
+  low: "border-slate-200 bg-slate-100 text-slate-600",
+};
+
+const badgeClass = (map: Record<string, string>, key?: string | null) =>
+  map[(key ?? "").toLowerCase()] ??
+  "border-slate-200 bg-slate-100 text-slate-600";
 
 const priorities = [
   { value: "low", label: "Low" },
@@ -3507,9 +3529,7 @@ export default function BoardDetailPage() {
           </div>
           <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
             <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Description
-              </p>
+              <p className={FIELD_LABEL}>Description</p>
               {selectedTask?.description ? (
                 <div className="prose prose-sm max-w-none text-slate-700">
                   <Markdown
@@ -3524,59 +3544,66 @@ export default function BoardDetailPage() {
               )}
             </div>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-              <div className="space-y-1">
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Status
-                </p>
-                <p className="text-sm font-medium text-slate-900">
+              <div className="space-y-1.5">
+                <p className={FIELD_LABEL}>Status</p>
+                <span
+                  className={`inline-flex w-fit items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${badgeClass(
+                    STATUS_BADGE,
+                    selectedTask?.status,
+                  )}`}
+                >
                   {selectedTask?.status ?? "—"}
-                </p>
+                </span>
               </div>
-              <div className="space-y-1">
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Assignee
-                </p>
-                <p className="text-sm font-medium text-slate-900">
+              <div className="space-y-1.5">
+                <p className={FIELD_LABEL}>Assignee</p>
+                <p className="text-sm font-semibold text-slate-900">
                   {selectedTask?.assignee ?? "Unassigned"}
                 </p>
               </div>
-              <div className="space-y-1">
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Priority
-                </p>
-                <p className="text-sm font-medium text-slate-900">
+              <div className="space-y-1.5">
+                <p className={FIELD_LABEL}>Priority</p>
+                <span
+                  className={`inline-flex w-fit items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${badgeClass(
+                    PRIORITY_BADGE,
+                    selectedTask?.priority,
+                  )}`}
+                >
                   {selectedTask?.priority ?? "—"}
-                </p>
+                </span>
               </div>
             </div>
             {selectedTask?.status_reason ? (
               <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Status reason
-                </p>
+                <p className={FIELD_LABEL}>Status reason</p>
                 <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
                   {selectedTask.status_reason}
                 </p>
               </div>
             ) : null}
+            <details className="group rounded-lg border border-slate-200">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 hover:bg-slate-50">
+                <span className={FIELD_LABEL}>Output (deliverable)</span>
+                <ChevronDown className="h-4 w-4 text-slate-400 transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="border-t border-slate-200 px-3 py-3">
+                {selectedTask?.output ? (
+                  <div className="prose prose-sm max-w-none text-slate-700">
+                    <Markdown
+                      content={selectedTask.output}
+                      variant="description"
+                    />
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500">
+                    No output yet. The agent puts the deliverable here when
+                    moving to review.
+                  </p>
+                )}
+              </div>
+            </details>
             <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Output (deliverable)
-              </p>
-              {selectedTask?.output ? (
-                <div className="prose prose-sm max-w-none text-slate-700">
-                  <Markdown content={selectedTask.output} variant="description" />
-                </div>
-              ) : (
-                <p className="text-sm text-slate-500">
-                  No output yet. The agent puts the deliverable here when moving to review.
-                </p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Custom fields
-              </p>
+              <p className={FIELD_LABEL}>Custom fields</p>
               {customFieldDefinitionsQuery.isLoading ? (
                 <p className="text-sm text-slate-500">Loading custom fields…</p>
               ) : boardCustomFieldDefinitions.length > 0 ? (
@@ -3612,9 +3639,7 @@ export default function BoardDetailPage() {
               )}
             </div>
             <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Tags
-              </p>
+              <p className={FIELD_LABEL}>Tags</p>
               {selectedTask?.tags?.length ? (
                 <div className="flex flex-wrap gap-2">
                   {selectedTask.tags.map((tag) => (
@@ -3637,9 +3662,7 @@ export default function BoardDetailPage() {
               )}
             </div>
             <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Dependencies
-              </p>
+              <p className={FIELD_LABEL}>Dependencies</p>
               {(() => {
                 const hasDependencies =
                   (selectedTask?.depends_on_task_ids?.length ?? 0) > 0;
@@ -3680,9 +3703,7 @@ export default function BoardDetailPage() {
             </div>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Approvals
-                </p>
+                <p className={FIELD_LABEL}>Approvals</p>
                 <Button
                   variant="outline"
                   size="sm"
