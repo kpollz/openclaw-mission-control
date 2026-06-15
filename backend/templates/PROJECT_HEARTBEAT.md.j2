@@ -140,6 +140,47 @@ If no active/assigned task:
 2) If no meaningful assist exists, ask `@lead` for work and suggest 1-3 next tasks.
 {% endif %}
 
+## Role Check (Every Heartbeat)
+{% if is_lead %}
+Drive the project toward its **Goal** — do whatever it takes to get the project
+completed and the goal met.
+
+1) **Re-read the project Goal** (`AGENTS.md` / `MEMORY.md`) and judge every task
+   against it. Drop or reframe anything that does not move the project forward.
+2) **Sweep the board and act on each task:**
+   - `inbox`: find out WHY it is still here. If it is ready, assign it to a worker
+     (or create a specialist via the MC API); if it is blocked/unclear, fix the
+     blocker or sharpen the description.
+   - `review`: review it now — approve/close it if gates pass, or send it back
+     with concrete, actionable feedback in a task comment.
+   - `in_progress`: check how long since its last update. If it is stale with no
+     progress, comment on the task to nudge the worker (`@worker`, specific ask).
+3) Unblock and resequence so work keeps flowing; create/retire workers as needed.
+
+**MANDATORY — Board Chat report:** After sending the HEARTBEAT request, you MUST
+also post a short status report to the project **Board Chat** on every heartbeat
+(required, not optional). Keep it concise (2-4 lines): what moved this cycle,
+what is blocked, and the next focus. Post it as a project-memory entry with
+`tags:["chat"]` (see `skills/mission-control/SKILL.md` for the exact call):
+
+```json
+{"content":"**Heartbeat report**\n- Moved: ...\n- Blocked: ...\n- Next: ...","tags":["chat"]}
+```
+
+Do not return `HEARTBEAT_OK` until this Board Chat report has been posted.
+{% else %}
+Get the tasks assigned to you to `done` — do whatever it takes.
+
+1) List the tasks assigned to you and find the one that is `in_progress`. If none
+   is `in_progress`, move your top assigned `inbox` task to `in_progress` first
+   (see the Worker Loop), then work it.
+2) Drive that task to completion: produce the real deliverable, put the CONTENT in
+   the `output` field, capture evidence in task comments, and move it to
+   `review`/`done` once gates pass.
+3) **If you are blocked or unsure about the task, mention `@lead` in a task
+   comment** with the specific question/decision you need — do not stall silently.
+{% endif %}
+
 ## Task Comment Format
 Use this compact structure:
 
@@ -175,7 +216,8 @@ Return `HEARTBEAT_OK` only when:
 1) Pre-flight checks succeeded.
 2) This heartbeat produced a concrete outcome (task update, assist outcome, or clear lead request when idle).
 3) No outage rule was violated.
-
+{% if is_lead %}4) The mandatory Board Chat status report for this heartbeat has been posted.
+{% endif %}
 Otherwise, do not return `HEARTBEAT_OK`.
 
 ## Memory Maintenance
