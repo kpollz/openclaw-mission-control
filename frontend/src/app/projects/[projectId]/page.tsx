@@ -3523,6 +3523,56 @@ export default function BoardDetailPage() {
                 </p>
               )}
             </div>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Status
+                </p>
+                <p className="text-sm font-medium text-slate-900">
+                  {selectedTask?.status ?? "—"}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Assignee
+                </p>
+                <p className="text-sm font-medium text-slate-900">
+                  {selectedTask?.assignee ?? "Unassigned"}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Priority
+                </p>
+                <p className="text-sm font-medium text-slate-900">
+                  {selectedTask?.priority ?? "—"}
+                </p>
+              </div>
+            </div>
+            {selectedTask?.status_reason ? (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Status reason
+                </p>
+                <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                  {selectedTask.status_reason}
+                </p>
+              </div>
+            ) : null}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Output (deliverable)
+              </p>
+              {selectedTask?.output ? (
+                <div className="prose prose-sm max-w-none text-slate-700">
+                  <Markdown content={selectedTask.output} variant="description" />
+                </div>
+              ) : (
+                <p className="text-sm text-slate-500">
+                  No output yet. The agent puts the deliverable here when moving to review.
+                </p>
+              )}
+            </div>
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Custom fields
